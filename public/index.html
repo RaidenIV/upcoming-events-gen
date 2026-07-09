@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#000000" />
+  <title>Upcoming Events Page Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <aside class="sidebar" aria-label="Upcoming event editor">
+      <header class="sidebar-header">
+        <img
+          class="brand-logo"
+          src="https://images.squarespace-cdn.com/content/v1/681ea18dd168a935c26295bd/c311da3d-6fbf-446a-858c-227fa011e7e3/Xodia+MEDIA+Group+%28TRANS%29+%281%29+%281%29.png?format=750w"
+          alt="XODIA Media Group"
+        />
+        <div>
+          <h1>Upcoming Events Page Generator</h1>
+          <p>Changes update the live page automatically.</p>
+        </div>
+      </header>
+
+      <section class="sidebar-controls" aria-labelledby="event-count-label">
+        <label id="event-count-label" for="eventCount">Number of Events to Add</label>
+        <input id="eventCount" type="number" min="1" max="20" step="1" inputmode="numeric" />
+        <p class="field-hint">Only complete events dated today or later are included.</p>
+      </section>
+
+      <div id="eventEditors" class="event-editors" aria-live="polite"></div>
+
+      <footer class="sidebar-footer">
+        <div id="pageStatus" class="page-status" role="status"></div>
+        <button id="copyCodeButton" class="copy-button" type="button">Copy Code</button>
+      </footer>
+    </aside>
+
+    <section class="viewport-panel" aria-label="Live generated page preview">
+      <div class="viewport-toolbar">
+        <div>
+          <span class="viewport-label">Live Page Preview</span>
+          <span id="viewportSummary" class="viewport-summary"></span>
+        </div>
+        <span class="live-indicator"><span></span>Live</span>
+      </div>
+      <div class="viewport-frame-shell">
+        <iframe
+          id="pagePreview"
+          title="Upcoming events page preview"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+        ></iframe>
+      </div>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

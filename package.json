@@ -1,0 +1,12 @@
+{
+  "name": "xmg-upcoming-events-page-generator",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Live upcoming-events page generator for XODIA Media Group.",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
