@@ -2,12 +2,12 @@
 
 import { activateUpcomingEvents } from "./upcoming-events.js";
 import { activateEventCodeBlock } from "./event-code-block.js";
+import { setPreviewTitle } from "./preview.js";
 
 const appTitle = document.getElementById("appTitle");
 const modeToggle = document.getElementById("modeToggle");
 const upcomingMode = document.getElementById("upcomingMode");
 const codeBlockMode = document.getElementById("codeBlockMode");
-const pagePreview = document.getElementById("pagePreview");
 const navDropdown = document.getElementById("navDropdown");
 const navToggle = document.getElementById("navToggle");
 
@@ -30,7 +30,7 @@ function setMode(mode) {
     isCodeMode ? "Switch to Upcoming Events Page Generator" : "Switch to Event Page Generator"
   );
   modeToggle.title = modeToggle.getAttribute("aria-label");
-  pagePreview.title = isCodeMode ? "Event code block page preview" : "Upcoming events page preview";
+  setPreviewTitle(isCodeMode ? "Event code block page preview" : "Upcoming events page preview");
 
   if (isCodeMode) activateEventCodeBlock();
   else activateUpcomingEvents();

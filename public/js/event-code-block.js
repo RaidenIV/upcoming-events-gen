@@ -1,7 +1,8 @@
 "use strict";
 
+import { renderPreview } from "./preview.js";
+
 const $ = (id) => document.getElementById(id);
-const pagePreview = $("pagePreview");
 const codeStatus = $("codeStatus");
 const clearButton = $("clearCodeButton");
 const copyButton = $("copyEventCodeButton");
@@ -899,7 +900,7 @@ function generateEventCode() {
   });
 
   codeStatus.textContent = "";
-  if (!$("codeBlockMode").hidden) pagePreview.srcdoc = generatedCode;
+  if (!$("codeBlockMode").hidden) renderPreview(generatedCode);
 }
 
 function clearEventCodeForm() {
@@ -1003,7 +1004,7 @@ void loadSavedEventPages();
 export function activateEventCodeBlock() {
   if (!savedPagesLoaded) void loadSavedEventPages();
   generateEventCode();
-  pagePreview.srcdoc = generatedCode;
+  renderPreview(generatedCode, { force: true });
 }
 
 export function getEventCodeBlockCode() {
