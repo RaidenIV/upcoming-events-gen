@@ -59,31 +59,37 @@ button { color: inherit; }
 }
 
 .menu-bar-left {
+  justify-content: space-between;
   gap: 14px;
   padding: 0 18px;
   border-right: 1px solid var(--line);
 }
 
-.menu-bar-left h1 {
-  min-width: 0;
+.menu-bar-right {
+  position: relative;
+  justify-content: flex-end;
+  gap: 16px;
+  padding: 0 18px;
+}
+
+.viewport-title {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(78%, 760px);
   margin: 0;
   overflow: hidden;
   color: var(--text);
-  font-size: 20px;
-  font-weight: 700;
-  line-height: 1.05;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-body.is-code-mode .menu-bar-left h1 {
   font-size: 18px;
-}
-
-.menu-bar-right {
-  justify-content: space-between;
-  gap: 16px;
-  padding: 0 18px;
+  font-weight: 700;
+  letter-spacing: 0.055em;
+  line-height: 1;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
 }
 
 .nav-dropdown {
@@ -182,7 +188,6 @@ body.is-code-mode .menu-bar-left h1 {
 .mode-toggle {
   position: relative;
   flex: 0 0 auto;
-  margin-left: auto;
   width: 44px;
   height: 24px;
   padding: 0;
@@ -213,13 +218,6 @@ body.is-code-mode .menu-bar-left h1 {
 }
 
 .mode-toggle.is-code-mode .mode-toggle-knob { transform: translateX(18px); }
-
-.viewport-label {
-  font-size: 14px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
 
 .viewport-logo {
   display: block;
@@ -406,12 +404,13 @@ textarea {
   }
 
   .menu-bar-left {
-    flex: 1;
-    border-right: 0;
+    flex: 0 0 auto;
+    width: 116px;
+    border-right: 1px solid var(--line);
   }
 
   .menu-bar-right {
-    flex: 0 0 auto;
+    flex: 1;
   }
 
   .app-workspace {
@@ -431,8 +430,7 @@ textarea {
 @media (max-width: 620px) {
   .menu-bar-left { gap: 10px; padding: 0 12px; }
   .menu-bar-right { padding: 0 12px 0 0; }
-  .menu-bar-left h1 { font-size: 17px; }
-  .viewport-label { display: none; }
+  .viewport-title { width: min(70%, 520px); font-size: 14px; }
   .viewport-logo { height: 25px; max-width: 105px; }
   .viewport-frame-shell { padding: 0; }
   .footer-actions-three { grid-template-columns: 1fr; }

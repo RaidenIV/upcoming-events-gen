@@ -3,12 +3,14 @@
 const http = require("node:http");
 const fs = require("node:fs");
 const path = require("node:path");
+const crypto = require("node:crypto");
 
 const PORT = Number(process.env.PORT) || 3000;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(__dirname, "data"));
 const SAVED_PAGE_PATH = path.join(DATA_DIR, "upcoming-events-page.html");
 const SAVED_DATA_PATH = path.join(DATA_DIR, "upcoming-events-data.json");
+const SINGLE_EVENT_PAGES_PATH = path.join(DATA_DIR, "single-event-pages.json");
 const MAX_BODY_BYTES = 2 * 1024 * 1024;
 
 const MIME_TYPES = {
@@ -82,6 +84,105 @@ async function writeAtomic(filePath, contents) {
   await fs.promises.rename(temporaryPath, filePath);
 }
 
+const SINGLE_EVENT_DETAIL_FIELDS = [
+  "eventName",
+  "venueName",
+  "venueAddress",
+  "eventDate",
+  "eventTz",
+  "flyerUrl",
+  "ticketMode",
+  "ticketUrl",
+  "ticketEmbed",
+  "ticketBtnText",
+  "eventDescription",
+  "spotifyInput",
+  "soundcloudInput"
+];
+
+function normalizeSingleEventDetails(input) {
+  const source = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+  const details = {};
+  SINGLE_EVENT_DETAIL_FIELDS.forEach((field) => {
+    const value = typeof source[field] === "string" ? source[field] : "";
+    details[field] = value.slice(0, field.includes("Embed") || field.includes("Input") ? 250000 : 10000);
+  });
+  details.ticketMode = details.ticketMode === "embed" ? "embed" : "button";
+  details.eventTz = [
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "UTC"
+  ].includes(details.eventTz) ? details.eventTz : "America/New_York";
+  details.ticketBtnText = details.ticketBtnText || "Get Tickets";
+  return details;
+}
+
+async function readSingleEventPages() {
+  try {
+    const contents = await fs.promises.readFile(SINGLE_EVENT_PAGES_PATH, "utf8");
+    const parsed = JSON.parse(contents);
+    return Array.isArray(parsed.pages) ? parsed.pages : [];
+  } catch (error) {
+    if (error.code === "ENOENT") return [];
+    throw error;
+  }
+}
+
+async function listSingleEventPages(res) {
+  try {
+    const pages = await readSingleEventPages();
+    pages.sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")));
+    sendJson(res, 200, { pages });
+  } catch (error) {
+    console.error("Failed to read saved single-event pages.", error);
+    sendJson(res, 500, { error: "The server could not load saved event pages." });
+  }
+}
+
+async function saveSingleEventPage(req, res) {
+  try {
+    const payload = await readJsonBody(req);
+    const details = normalizeSingleEventDetails(payload.details);
+    const eventName = details.eventName.trim();
+    if (!eventName) {
+      sendJson(res, 400, { error: "An event name is required before saving." });
+      return;
+    }
+
+    const pages = await readSingleEventPages();
+    const now = new Date().toISOString();
+    const requestedId = typeof payload.id === "string" && /^[a-zA-Z0-9_-]{8,100}$/.test(payload.id)
+      ? payload.id
+      : "";
+    const existingIndex = requestedId ? pages.findIndex((page) => page.id === requestedId) : -1;
+    const existing = existingIndex >= 0 ? pages[existingIndex] : null;
+    const page = {
+      id: existing?.id || crypto.randomUUID(),
+      name: eventName,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+      details
+    };
+
+    if (existingIndex >= 0) pages[existingIndex] = page;
+    else pages.unshift(page);
+
+    const limitedPages = pages
+      .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))
+      .slice(0, 100);
+    await writeAtomic(SINGLE_EVENT_PAGES_PATH, `${JSON.stringify({ pages: limitedPages }, null, 2)}\n`);
+
+    sendJson(res, 200, { status: "saved", page });
+  } catch (error) {
+    console.error("Failed to save single-event page details.", error);
+    sendJson(res, error.statusCode || 500, {
+      error: error.statusCode ? error.message : "The server could not save the event page details."
+    });
+  }
+}
+
 async function saveGeneratedPage(req, res) {
   try {
     const payload = await readJsonBody(req);
@@ -119,6 +220,20 @@ const server = http.createServer((req, res) => {
 
   if (requestUrl.pathname === "/health") {
     sendJson(res, 200, { status: "ok" });
+    return;
+  }
+
+  if (requestUrl.pathname === "/api/event-pages") {
+    if (req.method === "GET") {
+      void listSingleEventPages(res);
+      return;
+    }
+    if (req.method === "POST") {
+      void saveSingleEventPage(req, res);
+      return;
+    }
+    res.writeHead(405, { "Allow": "GET, POST", "Content-Type": "text/plain; charset=utf-8" });
+    res.end("Method not allowed");
     return;
   }
 

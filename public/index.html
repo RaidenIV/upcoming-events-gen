@@ -23,25 +23,24 @@
           <a href="https://www.xodiamediagroup.com/" target="_top" rel="noopener">Home</a>
           <a href="https://www.xodiamediagroup.com/upcoming-events" target="_top" rel="noopener">Upcoming Events</a>
           <a href="https://www.xodiamediagroup.com/contact" target="_top" rel="noopener">Contact Us</a>
-          <a href="https://tools-dashboard-production-1c7c.up.railway.app/" target="_top" rel="noopener">Tools</a>
+          <a href="https://www.xodiamediagroup.com/tools" target="_top" rel="noopener">Tools</a>
         </div>
       </div>
 
-      <h1 id="appTitle">Event Page Generator</h1>
       <button
         class="mode-toggle"
         id="modeToggle"
         type="button"
-        aria-label="Switch to Event Code Block Generator"
+        aria-label="Switch to Event Page Generator"
         aria-pressed="false"
-        title="Switch to Event Code Block Generator"
+        title="Switch to Event Page Generator"
       >
         <span class="mode-toggle-knob" aria-hidden="true"></span>
       </button>
     </div>
 
     <div class="menu-bar-right">
-      <span class="viewport-label">Live Page Preview</span>
+      <h1 id="appTitle" class="viewport-title">UPCOMING EVENTS PAGE GENERATOR</h1>
       <img class="viewport-logo" src="./assets/white.svg" alt="AIGOX Software" />
     </div>
   </header>
@@ -66,8 +65,29 @@
       </footer>
     </aside>
 
-    <aside id="codeBlockMode" class="sidebar mode-panel" aria-label="Event code block editor" hidden>
+    <aside id="codeBlockMode" class="sidebar mode-panel" aria-label="Single event page editor" hidden>
       <div class="code-editor-scroll">
+        <section class="generator-section">
+          <div class="section-title">Saved Event Pages</div>
+          <div class="saved-page-controls">
+            <select id="savedEventPages" aria-label="Previously saved event pages">
+              <option value="">Select a saved page...</option>
+            </select>
+            <button id="loadSavedEventButton" class="sidebar-action-button" type="button">Load</button>
+          </div>
+          <p id="savedPagesHint" class="field-hint">Save page details to the server, then load them later to regenerate the page.</p>
+        </section>
+
+        <section class="generator-section">
+          <div class="section-title">Import Generated Code</div>
+          <div class="field-group">
+            <label for="importEventCode">Paste Previously Generated Code</label>
+            <textarea id="importEventCode" class="code-import-input" placeholder="Paste a previously generated event page code block here..."></textarea>
+            <p class="field-hint">Pasted code is read into the editable fields and regenerated in the viewport.</p>
+          </div>
+          <button id="importEventCodeButton" class="sidebar-action-button full-width-action" type="button">Import Code</button>
+        </section>
+
         <section class="generator-section">
           <div class="section-title">Event Info</div>
 
@@ -177,8 +197,9 @@
 
       <footer class="sidebar-footer code-sidebar-footer">
         <div id="codeStatus" class="page-status" role="status" aria-live="polite"></div>
-        <div class="footer-actions footer-actions-two">
+        <div class="footer-actions footer-actions-three">
           <button id="copyEventCodeButton" class="primary-button" type="button">Copy Code</button>
+          <button id="saveEventPageButton" class="secondary-button" type="button">Save Page</button>
           <button id="clearCodeButton" class="secondary-button" type="button">Clear</button>
         </div>
       </footer>

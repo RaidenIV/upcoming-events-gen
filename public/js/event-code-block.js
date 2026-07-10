@@ -5,8 +5,17 @@ const pagePreview = $("pagePreview");
 const codeStatus = $("codeStatus");
 const clearButton = $("clearCodeButton");
 const copyButton = $("copyEventCodeButton");
+const saveEventPageButton = $("saveEventPageButton");
+const savedEventPagesSelect = $("savedEventPages");
+const loadSavedEventButton = $("loadSavedEventButton");
+const savedPagesHint = $("savedPagesHint");
+const importEventCodeInput = $("importEventCode");
+const importEventCodeButton = $("importEventCodeButton");
 
 let generatedCode = "";
+let savedEventPages = [];
+let currentSavedEventPageId = "";
+let savedPagesLoaded = false;
 
 function escapeHtml(s) {
   return String(s)
@@ -598,6 +607,271 @@ function selectedVenueName() {
     : $("venueName").value;
 }
 
+function collectEventDetails() {
+  return {
+    eventName: $("eventName").value.trim(),
+    venueName: selectedVenueName(),
+    venueAddress: $("venueAddress").value.trim(),
+    eventDate: $("eventDate").value,
+    eventTz: $("eventTz").value,
+    flyerUrl: $("flyerUrl").value.trim(),
+    ticketMode: $("ticketMode").value === "embed" ? "embed" : "button",
+    ticketUrl: $("ticketUrl").value.trim(),
+    ticketEmbed: $("ticketEmbed").value,
+    ticketBtnText: $("ticketBtnText").value.trim() || "Get Tickets",
+    eventDescription: $("eventDescription").value.trim(),
+    spotifyInput: $("spotifyInput").value,
+    soundcloudInput: $("soundcloudInput").value
+  };
+}
+
+function setVenueFromName(venueName) {
+  const value = String(venueName || "").trim();
+  const presetNames = Object.keys(venueData);
+  if (presetNames.includes(value)) {
+    $("venueName").value = value;
+    $("venueNameCustom").value = "";
+    $("venueNameCustom").hidden = true;
+    return;
+  }
+
+  if (value) {
+    $("venueName").value = "custom";
+    $("venueNameCustom").value = value;
+    $("venueNameCustom").hidden = false;
+    return;
+  }
+
+  $("venueName").value = "";
+  $("venueNameCustom").value = "";
+  $("venueNameCustom").hidden = true;
+}
+
+function applyEventDetails(details, savedPageId = "") {
+  const next = details && typeof details === "object" ? details : {};
+  $("eventName").value = String(next.eventName || "");
+  setVenueFromName(next.venueName);
+  $("venueAddress").value = String(next.venueAddress || "");
+  $("eventDate").value = String(next.eventDate || "");
+  $("eventTz").value = [
+    "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "UTC"
+  ].includes(next.eventTz) ? next.eventTz : "America/New_York";
+  $("flyerUrl").value = String(next.flyerUrl || "");
+  $("ticketMode").value = next.ticketMode === "embed" ? "embed" : "button";
+  $("ticketUrl").value = String(next.ticketUrl || "");
+  $("ticketEmbed").value = String(next.ticketEmbed || "");
+  $("ticketBtnText").value = String(next.ticketBtnText || "Get Tickets");
+  $("eventDescription").value = String(next.eventDescription || "");
+  $("spotifyInput").value = String(next.spotifyInput || "");
+  $("soundcloudInput").value = String(next.soundcloudInput || "");
+
+  currentSavedEventPageId = savedPageId;
+  savedEventPagesSelect.value = savedPageId;
+  updateTimezoneLabel();
+  updateTicketModeUI();
+  generateEventCode();
+}
+
+function tzIanaFromLabel(label) {
+  const map = {
+    ET: "America/New_York",
+    CT: "America/Chicago",
+    MT: "America/Denver",
+    PT: "America/Los_Angeles",
+    UTC: "UTC"
+  };
+  return map[String(label || "").trim().toUpperCase()] || "America/New_York";
+}
+
+function utcIsoToZonedLocalInput(iso, timeZone) {
+  const date = new Date(iso);
+  if (!iso || Number.isNaN(date.getTime())) return "";
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  const values = {};
+  formatter.formatToParts(date).forEach((part) => {
+    if (part.type !== "literal") values[part.type] = part.value;
+  });
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+}
+
+function textWithBreaks(element) {
+  if (!element) return "";
+  const clone = element.cloneNode(true);
+  clone.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
+  return clone.textContent.trim();
+}
+
+function parseGeneratedEventCode(code) {
+  const documentFragment = new DOMParser().parseFromString(code, "text/html");
+  const root = documentFragment.querySelector(".xmgR-page");
+  const titleElement = documentFragment.querySelector(".xmgR-hero-title-text");
+  if (!root || !titleElement) {
+    throw new Error("This does not appear to be a generated single-event page.");
+  }
+
+  const tzLabel = root.getAttribute("data-tz-label") || "ET";
+  const eventTz = tzIanaFromLabel(tzLabel);
+  const eventISO = root.getAttribute("data-event-iso") || "";
+  const details = {
+    eventName: titleElement.textContent.trim(),
+    venueName: documentFragment.querySelector(".xmgR-venue-name")?.textContent.trim() || "",
+    venueAddress: documentFragment.querySelector(".xmgR-venue-addr")?.textContent.trim() || "",
+    eventDate: utcIsoToZonedLocalInput(eventISO, eventTz),
+    eventTz,
+    flyerUrl: "",
+    ticketMode: "button",
+    ticketUrl: "",
+    ticketEmbed: "",
+    ticketBtnText: "Get Tickets",
+    eventDescription: textWithBreaks(documentFragment.querySelector(".xmgR-hero-sub")),
+    spotifyInput: "",
+    soundcloudInput: ""
+  };
+
+  const flyerImage = documentFragment.querySelector(".xmgR-flyer-frame:not(.xmgR-flyer-empty) img");
+  if (flyerImage) details.flyerUrl = flyerImage.getAttribute("src") || "";
+
+  const ticketBlock = documentFragment.querySelector(".xmgR-ticket-panel .xmgR-ticket-block")
+    || documentFragment.querySelector(".xmgR-ticket-block");
+  const ticketEmbed = ticketBlock?.querySelector(".xmgR-ticket-embed");
+  const ticketButton = ticketBlock?.querySelector(".xmgR-ticket-btn");
+  if (ticketEmbed) {
+    details.ticketMode = "embed";
+    details.ticketEmbed = ticketEmbed.innerHTML.trim();
+  } else if (ticketButton) {
+    details.ticketMode = "button";
+    details.ticketUrl = ticketButton.getAttribute("href") || "";
+    details.ticketBtnText = ticketButton.textContent.replace(/\s+/g, " ").trim() || "Get Tickets";
+  }
+
+  const musicItems = Array.from(documentFragment.querySelectorAll(".xmgR-music-grid > *"));
+  musicItems.forEach((item) => {
+    const link = item.querySelector("a.xmg-linkbtn");
+    const value = link ? (link.getAttribute("href") || "") : item.innerHTML.trim();
+    const searchable = value.toLowerCase();
+    if (searchable.includes("spotify")) details.spotifyInput = value;
+    else if (searchable.includes("soundcloud")) details.soundcloudInput = value;
+    else if (!details.spotifyInput) details.spotifyInput = value;
+    else if (!details.soundcloudInput) details.soundcloudInput = value;
+  });
+
+  return details;
+}
+
+function formatSavedPageOption(page) {
+  const name = page?.details?.eventName?.trim() || page?.name || "Untitled Event";
+  const dateValue = page?.details?.eventDate || "";
+  if (!dateValue) return name;
+  const date = new Date(`${dateValue}:00`);
+  if (Number.isNaN(date.getTime())) return name;
+  return `${name} — ${date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
+function renderSavedEventPages(selectedId = currentSavedEventPageId) {
+  const options = ['<option value="">Select a saved page...</option>'];
+  savedEventPages.forEach((page) => {
+    options.push(`<option value="${escapeHtml(page.id)}">${escapeHtml(formatSavedPageOption(page))}</option>`);
+  });
+  savedEventPagesSelect.innerHTML = options.join("");
+  savedEventPagesSelect.value = selectedId || "";
+  loadSavedEventButton.disabled = !selectedId;
+  savedPagesHint.textContent = savedEventPages.length
+    ? `${savedEventPages.length} saved page${savedEventPages.length === 1 ? "" : "s"} available on the server.`
+    : "No saved event pages are on the server yet.";
+}
+
+async function loadSavedEventPages(selectedId = currentSavedEventPageId) {
+  loadSavedEventButton.disabled = true;
+  try {
+    const response = await fetch("/api/event-pages", { headers: { Accept: "application/json" } });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Saved pages could not be loaded.");
+    savedEventPages = Array.isArray(result.pages) ? result.pages : [];
+    savedPagesLoaded = true;
+    renderSavedEventPages(selectedId);
+  } catch (error) {
+    console.error("Saved event pages could not be loaded.", error);
+    savedPagesHint.textContent = "Saved pages are unavailable from the server.";
+    loadSavedEventButton.disabled = true;
+  }
+}
+
+async function saveCurrentEventPage() {
+  const details = collectEventDetails();
+  if (!details.eventName) {
+    codeStatus.textContent = "Enter an event name before saving the page.";
+    $("eventName").focus();
+    return;
+  }
+
+  const originalText = saveEventPageButton.textContent;
+  saveEventPageButton.disabled = true;
+  saveEventPageButton.textContent = "Saving...";
+  try {
+    const response = await fetch("/api/event-pages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: currentSavedEventPageId || undefined, details })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "The event page details could not be saved.");
+
+    currentSavedEventPageId = result.page.id;
+    await loadSavedEventPages(currentSavedEventPageId);
+    codeStatus.textContent = `Saved “${result.page.name}” to the server.`;
+    saveEventPageButton.textContent = "Saved";
+    saveEventPageButton.classList.add("saved");
+    window.setTimeout(() => {
+      saveEventPageButton.textContent = "Save Page";
+      saveEventPageButton.classList.remove("saved");
+    }, 1400);
+  } catch (error) {
+    console.error("The event page details could not be saved.", error);
+    codeStatus.textContent = error.message;
+    saveEventPageButton.textContent = originalText;
+  } finally {
+    saveEventPageButton.disabled = false;
+  }
+}
+
+function loadSelectedEventPage() {
+  const selectedId = savedEventPagesSelect.value;
+  const page = savedEventPages.find((item) => item.id === selectedId);
+  if (!page) {
+    codeStatus.textContent = "Select a saved event page to load.";
+    return;
+  }
+  applyEventDetails(page.details, page.id);
+  codeStatus.textContent = `Loaded “${page.name || page.details.eventName || "Untitled Event"}”.`;
+}
+
+function importPastedEventCode() {
+  const pastedCode = importEventCodeInput.value.trim();
+  if (!pastedCode) {
+    codeStatus.textContent = "Paste previously generated event page code first.";
+    importEventCodeInput.focus();
+    return;
+  }
+
+  try {
+    const details = parseGeneratedEventCode(pastedCode);
+    applyEventDetails(details, "");
+    importEventCodeInput.value = "";
+    codeStatus.textContent = "Imported the page details and regenerated the preview.";
+  } catch (error) {
+    console.error("The pasted event page code could not be imported.", error);
+    codeStatus.textContent = error.message;
+  }
+}
+
 function updateEventCodePreview() {
   generateEventCode();
 }
@@ -606,21 +880,22 @@ function generateEventCode() {
   const eventDateVal = $("eventDate").value;
   const eventTz = $("eventTz").value;
 
+  const details = collectEventDetails();
   generatedCode = generateSnippet({
-    eventName: $("eventName").value.trim() || "EVENT NAME",
-    venueName: selectedVenueName() || "VENUE NAME",
-    venueAddress: $("venueAddress").value.trim() || "VENUE ADDRESS",
+    eventName: details.eventName || "EVENT NAME",
+    venueName: details.venueName || "VENUE NAME",
+    venueAddress: details.venueAddress || "VENUE ADDRESS",
     eventISO: zonedLocalToUtcIso(eventDateVal, eventTz),
     eventDateVal,
     tzLabel: tzLabelFromIana(eventTz),
-    flyerUrlTrimmed: $("flyerUrl").value.trim(),
-    ticketMode: $("ticketMode").value,
-    ticketUrl: $("ticketUrl").value.trim(),
-    ticketEmbed: $("ticketEmbed").value,
-    ticketBtnText: $("ticketBtnText").value.trim() || "Get Tickets",
-    eventDescription: $("eventDescription").value.trim() || "EVENT DESCRIPTION",
-    spotifyInput: $("spotifyInput").value,
-    soundcloudInput: $("soundcloudInput").value
+    flyerUrlTrimmed: details.flyerUrl,
+    ticketMode: details.ticketMode,
+    ticketUrl: details.ticketUrl,
+    ticketEmbed: details.ticketEmbed,
+    ticketBtnText: details.ticketBtnText,
+    eventDescription: details.eventDescription || "EVENT DESCRIPTION",
+    spotifyInput: details.spotifyInput,
+    soundcloudInput: details.soundcloudInput
   });
 
   codeStatus.textContent = "";
@@ -638,6 +913,9 @@ function clearEventCodeForm() {
   $("eventTz").value = "America/New_York";
   $("ticketMode").value = "button";
   $("ticketBtnText").value = "Get Tickets";
+  currentSavedEventPageId = "";
+  savedEventPagesSelect.value = "";
+  importEventCodeInput.value = "";
   updateTimezoneLabel();
   updateTicketModeUI();
   generateEventCode();
@@ -706,13 +984,24 @@ $("eventTz").addEventListener("change", () => {
 
 clearButton.addEventListener("click", clearEventCodeForm);
 copyButton.addEventListener("click", copyEventCode);
+saveEventPageButton.addEventListener("click", saveCurrentEventPage);
+loadSavedEventButton.addEventListener("click", loadSelectedEventPage);
+savedEventPagesSelect.addEventListener("change", () => {
+  loadSavedEventButton.disabled = !savedEventPagesSelect.value;
+});
+importEventCodeButton.addEventListener("click", importPastedEventCode);
+importEventCodeInput.addEventListener("paste", () => {
+  window.setTimeout(importPastedEventCode, 0);
+});
 
 updateTicketModeUI();
 updateTimezoneLabel();
 
 generateEventCode();
+void loadSavedEventPages();
 
 export function activateEventCodeBlock() {
+  if (!savedPagesLoaded) void loadSavedEventPages();
   generateEventCode();
   pagePreview.srcdoc = generatedCode;
 }

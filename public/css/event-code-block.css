@@ -70,3 +70,47 @@
   .code-row { grid-template-columns: 1fr; }
   .code-row .field-group + .field-group { margin-top: 12px; }
 }
+
+.saved-page-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.sidebar-action-button {
+  min-height: 40px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background: #1c1c21;
+  color: var(--text);
+  padding: 9px 14px;
+  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  transition: border-color 0.16s ease, background 0.16s ease, filter 0.16s ease;
+}
+
+.sidebar-action-button:hover,
+.sidebar-action-button:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.sidebar-action-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.full-width-action {
+  width: 100%;
+  margin-top: 10px;
+}
+
+.code-import-input {
+  min-height: 118px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 11px;
+  line-height: 1.45;
+}

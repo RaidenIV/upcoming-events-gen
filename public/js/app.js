@@ -20,14 +20,14 @@ function setMode(mode) {
 
   upcomingMode.hidden = isCodeMode;
   codeBlockMode.hidden = !isCodeMode;
-  appTitle.textContent = isCodeMode ? "Event Code Block Generator" : "Event Page Generator";
+  appTitle.textContent = isCodeMode ? "EVENT PAGE GENERATOR" : "UPCOMING EVENTS PAGE GENERATOR";
   document.title = appTitle.textContent;
 
   modeToggle.classList.toggle("is-code-mode", isCodeMode);
   modeToggle.setAttribute("aria-pressed", String(isCodeMode));
   modeToggle.setAttribute(
     "aria-label",
-    isCodeMode ? "Switch to Event Page Generator" : "Switch to Event Code Block Generator"
+    isCodeMode ? "Switch to Upcoming Events Page Generator" : "Switch to Event Page Generator"
   );
   modeToggle.title = modeToggle.getAttribute("aria-label");
   pagePreview.title = isCodeMode ? "Event code block page preview" : "Upcoming events page preview";
