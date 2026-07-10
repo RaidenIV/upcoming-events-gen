@@ -35,7 +35,6 @@ const copyCodeButton = document.getElementById("copyCodeButton");
 const savePageButton = document.getElementById("savePageButton");
 const saveIndicator = document.getElementById("saveIndicator");
 const pageStatus = document.getElementById("pageStatus");
-const viewportSummary = document.getElementById("viewportSummary");
 
 let events = loadEvents();
 let generatedCode = "";
@@ -194,15 +193,14 @@ function updateEditorState(editor) {
   const state = editor.querySelector(".event-state");
   const datePreview = editor.querySelector(".date-preview");
 
-  editor.classList.remove("is-ready", "is-past");
+  editor.classList.remove("is-past");
   datePreview.textContent = formatEventDate(event.date);
 
   if (eventIsPast(event)) {
     editor.classList.add("is-past");
     state.textContent = "Past — Excluded";
   } else if (eventIsComplete(event)) {
-    editor.classList.add("is-ready");
-    state.textContent = "Scheduled";
+    state.textContent = "";
   } else {
     state.textContent = "Incomplete";
   }
@@ -276,7 +274,6 @@ function updateStatus(validEvents) {
   if (incompleteCount) excluded.push(`<span class="warning">${incompleteCount} incomplete</span>`);
 
   pageStatus.innerHTML = `<strong>${validEvents.length}</strong> upcoming event${validEvents.length === 1 ? "" : "s"} included${excluded.length ? ` · ${excluded.join(" · ")} excluded` : ""}.`;
-  viewportSummary.textContent = `${validEvents.length} event${validEvents.length === 1 ? "" : "s"} · chronological order`;
 }
 
 function updateGeneratedPage() {
@@ -394,7 +391,7 @@ async function copyGeneratedCode() {
   }
 
   const originalText = copyCodeButton.textContent;
-  copyCodeButton.textContent = "Code Copied";
+  copyCodeButton.textContent = "COPIED";
   copyCodeButton.classList.add("copied");
   window.setTimeout(() => {
     copyCodeButton.textContent = originalText;
