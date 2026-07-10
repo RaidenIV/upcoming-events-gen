@@ -14,14 +14,8 @@
   <main class="app-shell">
     <aside class="sidebar" aria-label="Upcoming event editor">
       <header class="sidebar-header">
-        <img
-          class="brand-logo"
-          src="https://images.squarespace-cdn.com/content/v1/681ea18dd168a935c26295bd/c311da3d-6fbf-446a-858c-227fa011e7e3/Xodia+MEDIA+Group+%28TRANS%29+%281%29+%281%29.png?format=750w"
-          alt="XODIA Media Group"
-        />
         <div>
           <h1>Upcoming Events Page Generator</h1>
-          <p>Changes update the live page automatically.</p>
         </div>
       </header>
 
@@ -34,8 +28,12 @@
       <div id="eventEditors" class="event-editors" aria-live="polite"></div>
 
       <footer class="sidebar-footer">
+        <div id="saveIndicator" class="save-indicator" role="status" aria-live="polite"></div>
         <div id="pageStatus" class="page-status" role="status"></div>
-        <button id="copyCodeButton" class="copy-button" type="button">Copy Code</button>
+        <div class="footer-actions">
+          <button id="copyCodeButton" class="copy-button" type="button">Copy Code</button>
+          <button id="savePageButton" class="save-button" type="button">Save</button>
+        </div>
       </footer>
     </aside>
 
@@ -45,7 +43,7 @@
           <span class="viewport-label">Live Page Preview</span>
           <span id="viewportSummary" class="viewport-summary"></span>
         </div>
-        <span class="live-indicator"><span></span>Live</span>
+        <img class="viewport-logo" src="/white.svg" alt="XODIA Media Group" />
       </div>
       <div class="viewport-frame-shell">
         <iframe

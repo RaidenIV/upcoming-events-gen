@@ -32,6 +32,8 @@ const eventCountInput = document.getElementById("eventCount");
 const eventEditors = document.getElementById("eventEditors");
 const pagePreview = document.getElementById("pagePreview");
 const copyCodeButton = document.getElementById("copyCodeButton");
+const savePageButton = document.getElementById("savePageButton");
+const saveIndicator = document.getElementById("saveIndicator");
 const pageStatus = document.getElementById("pageStatus");
 const viewportSummary = document.getElementById("viewportSummary");
 
@@ -161,7 +163,15 @@ function editorMarkup(event, index) {
 
       <div class="field-group">
         <label for="event-date-${index}">Date</label>
-        <input id="event-date-${index}" data-field="date" type="date" value="${escapeHtml(event.date)}" />
+        <div class="date-input-wrap">
+          <input id="event-date-${index}" data-field="date" type="date" value="${escapeHtml(event.date)}" />
+          <button class="calendar-button" type="button" data-calendar-for="event-date-${index}" aria-label="Open calendar for Event ${index + 1}">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <rect x="3.5" y="5.5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
+              <path d="M7.5 3.5v4M16.5 3.5v4M3.5 9.5h17" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"></path>
+            </svg>
+          </button>
+        </div>
         <div class="date-preview">${escapeHtml(formattedDate)}</div>
       </div>
 
@@ -207,6 +217,7 @@ function resizeEventList(nextCount) {
   }
   saveEvents();
   renderEditors();
+  markUnsaved();
   updateGeneratedPage();
 }
 
@@ -289,7 +300,78 @@ function handleEditorInput(event) {
 
   saveEvents();
   updateEditorState(editor);
+  markUnsaved();
   updateGeneratedPage();
+}
+
+function setSaveIndicator(message, state = "") {
+  saveIndicator.textContent = message;
+  saveIndicator.className = "save-indicator";
+  if (state) saveIndicator.classList.add(`is-${state}`);
+}
+
+function markUnsaved() {
+  setSaveIndicator("Unsaved changes", "unsaved");
+}
+
+function refreshGeneratedPageNow() {
+  window.clearTimeout(updateTimer);
+  const validEvents = usableEvents();
+  generatedCode = buildGeneratedPage(validEvents);
+  pagePreview.srcdoc = generatedCode;
+  updateStatus(validEvents);
+  return validEvents;
+}
+
+function openCalendar(button) {
+  const input = document.getElementById(button.dataset.calendarFor);
+  if (!input) return;
+
+  input.focus({ preventScroll: true });
+  if (typeof input.showPicker === "function") {
+    try {
+      input.showPicker();
+      return;
+    } catch (error) {
+      console.warn("The browser could not open the date picker directly.", error);
+    }
+  }
+  input.click();
+}
+
+async function saveGeneratedPage() {
+  refreshGeneratedPageNow();
+  setSaveIndicator("Saving…", "saving");
+  savePageButton.disabled = true;
+
+  try {
+    const response = await fetch("/api/save-page", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        events: events.map(cloneEvent),
+        code: generatedCode
+      })
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result.error || "The server could not save the page.");
+    }
+
+    setSaveIndicator("Saved to server", "saved");
+    savePageButton.textContent = "Saved";
+    savePageButton.classList.add("saved");
+    window.setTimeout(() => {
+      savePageButton.textContent = "Save";
+      savePageButton.classList.remove("saved");
+    }, 1400);
+  } catch (error) {
+    console.error("The page could not be saved to the server.", error);
+    setSaveIndicator("Save failed", "error");
+  } finally {
+    savePageButton.disabled = false;
+  }
 }
 
 async function copyGeneratedCode() {
@@ -323,7 +405,12 @@ async function copyGeneratedCode() {
 eventCountInput.addEventListener("change", () => resizeEventList(eventCountInput.value));
 eventEditors.addEventListener("input", handleEditorInput);
 eventEditors.addEventListener("change", handleEditorInput);
+eventEditors.addEventListener("click", (event) => {
+  const calendarButton = event.target.closest(".calendar-button");
+  if (calendarButton) openCalendar(calendarButton);
+});
 copyCodeButton.addEventListener("click", copyGeneratedCode);
+savePageButton.addEventListener("click", saveGeneratedPage);
 
 renderEditors();
 updateGeneratedPage();

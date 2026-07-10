@@ -53,18 +53,9 @@ textarea { font: inherit; }
 }
 
 .sidebar-header {
-  display: grid;
-  grid-template-columns: 76px minmax(0, 1fr);
-  gap: 14px;
-  align-items: center;
+  display: block;
   padding: 18px;
   border-bottom: 1px solid var(--line);
-}
-
-.brand-logo {
-  display: block;
-  width: 76px;
-  height: auto;
 }
 
 .sidebar-header h1 {
@@ -115,8 +106,51 @@ textarea:focus {
 }
 
 input[type='date']::-webkit-calendar-picker-indicator {
-  filter: invert(1);
+  width: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.date-input-wrap {
+  position: relative;
+}
+
+.date-input-wrap input {
+  padding-right: 44px;
+}
+
+.calendar-button {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
   cursor: pointer;
+  transform: translateY(-50%);
+  transition: color 0.16s ease, background 0.16s ease;
+}
+
+.calendar-button:hover,
+.calendar-button:focus-visible {
+  background: var(--accent-soft);
+  color: var(--accent);
+  outline: none;
+}
+
+.calendar-button svg {
+  width: 17px;
+  height: 17px;
 }
 
 textarea {
@@ -205,6 +239,7 @@ textarea {
 }
 
 .sidebar-footer {
+  position: relative;
   flex: 0 0 auto;
   padding: 14px 18px 18px;
   border-top: 1px solid var(--line);
@@ -214,6 +249,7 @@ textarea {
 .page-status {
   min-height: 18px;
   margin-bottom: 9px;
+  padding-right: 122px;
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
@@ -222,22 +258,62 @@ textarea {
 .page-status strong { color: var(--text); }
 .page-status .warning { color: var(--warning); }
 
-.copy-button {
+.save-indicator {
+  position: absolute;
+  top: 13px;
+  right: 18px;
+  min-height: 18px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.16s ease, color 0.16s ease;
+}
+
+.save-indicator:not(:empty) { opacity: 1; }
+.save-indicator.is-saving { color: var(--accent); }
+.save-indicator.is-saved { color: var(--success); }
+.save-indicator.is-unsaved { color: var(--warning); }
+.save-indicator.is-error { color: var(--danger); }
+
+.footer-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.copy-button,
+.save-button {
   width: 100%;
-  border: 1px solid var(--accent);
   border-radius: 10px;
-  background: var(--accent);
   color: #ffffff;
   padding: 11px 14px;
   cursor: pointer;
   font-weight: 700;
   letter-spacing: 0.03em;
-  transition: filter 0.16s ease, transform 0.16s ease;
+  transition: filter 0.16s ease, transform 0.16s ease, background 0.16s ease, border-color 0.16s ease;
 }
 
-.copy-button:hover { filter: brightness(1.08); }
-.copy-button:active { transform: translateY(1px); }
+.copy-button {
+  border: 1px solid var(--accent);
+  background: var(--accent);
+}
+
+.save-button {
+  border: 1px solid var(--line-strong);
+  background: #1c1c21;
+}
+
+.copy-button:hover,
+.save-button:hover { filter: brightness(1.08); }
+.copy-button:active,
+.save-button:active { transform: translateY(1px); }
 .copy-button.copied { background: #148a4d; border-color: #148a4d; }
+.save-button.saved { background: #148a4d; border-color: #148a4d; }
+.copy-button:disabled,
+.save-button:disabled { cursor: wait; opacity: 0.7; }
 
 .viewport-panel {
   display: flex;
@@ -271,23 +347,12 @@ textarea {
   font-size: 12px;
 }
 
-.live-indicator {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--success);
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-}
-
-.live-indicator span {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: currentColor;
-  box-shadow: 0 0 10px currentColor;
+.viewport-logo {
+  display: block;
+  width: auto;
+  height: 30px;
+  max-width: 132px;
+  object-fit: contain;
 }
 
 .viewport-frame-shell {
@@ -329,13 +394,9 @@ textarea {
 }
 
 @media (max-width: 560px) {
-  .sidebar-header {
-    grid-template-columns: 62px minmax(0, 1fr);
-    padding: 14px;
-  }
-
-  .brand-logo { width: 62px; }
+  .sidebar-header { padding: 14px; }
   .sidebar-header h1 { font-size: 18px; }
   .viewport-summary { display: none; }
+  .viewport-logo { height: 25px; max-width: 110px; }
   .viewport-frame-shell { padding: 8px; }
 }
