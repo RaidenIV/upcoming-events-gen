@@ -3,7 +3,6 @@
 const $ = (id) => document.getElementById(id);
 const pagePreview = $("pagePreview");
 const codeStatus = $("codeStatus");
-const generateButton = $("generateCodeButton");
 const clearButton = $("clearCodeButton");
 const copyButton = $("copyEventCodeButton");
 
@@ -583,20 +582,6 @@ animate();
 </html>`;
 }
 
-function codePlaceholder() {
-  return `<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-*{box-sizing:border-box}html,body{width:100%;height:100%;margin:0}body{display:grid;place-items:center;background:#050508;color:rgba(232,232,240,.55);font-family:Arial,sans-serif}.empty{max-width:420px;padding:32px;text-align:center;border:1px solid rgba(255,255,255,.09);border-radius:16px;background:rgba(255,255,255,.035)}h1{margin:0 0 8px;color:#fff;font-size:24px}p{margin:0;line-height:1.5}
-</style>
-</head>
-<body><div class="empty"><h1>Event Page Preview</h1><p>Complete the event fields and select Generate to preview the page.</p></div></body>
-</html>`;
-}
-
 function updateTicketModeUI() {
   const isButton = $("ticketMode").value === "button";
   $("ticketButtonWrap").hidden = !isButton;
@@ -613,10 +598,8 @@ function selectedVenueName() {
     : $("venueName").value;
 }
 
-function markCodeStale() {
-  generatedCode = "";
-  codeStatus.textContent = "";
-  if (!$("codeBlockMode").hidden) pagePreview.srcdoc = codePlaceholder();
+function updateEventCodePreview() {
+  generateEventCode();
 }
 
 function generateEventCode() {
@@ -624,9 +607,9 @@ function generateEventCode() {
   const eventTz = $("eventTz").value;
 
   generatedCode = generateSnippet({
-    eventName: $("eventName").value.trim(),
-    venueName: selectedVenueName(),
-    venueAddress: $("venueAddress").value.trim(),
+    eventName: $("eventName").value.trim() || "EVENT NAME",
+    venueName: selectedVenueName() || "VENUE NAME",
+    venueAddress: $("venueAddress").value.trim() || "VENUE ADDRESS",
     eventISO: zonedLocalToUtcIso(eventDateVal, eventTz),
     eventDateVal,
     tzLabel: tzLabelFromIana(eventTz),
@@ -635,15 +618,13 @@ function generateEventCode() {
     ticketUrl: $("ticketUrl").value.trim(),
     ticketEmbed: $("ticketEmbed").value,
     ticketBtnText: $("ticketBtnText").value.trim() || "Get Tickets",
-    eventDescription: $("eventDescription").value.trim(),
+    eventDescription: $("eventDescription").value.trim() || "EVENT DESCRIPTION",
     spotifyInput: $("spotifyInput").value,
     soundcloudInput: $("soundcloudInput").value
   });
 
-  pagePreview.srcdoc = generatedCode;
-  codeStatus.innerHTML = eventDateVal
-    ? '<span class="ok">Generated.</span>'
-    : '<span class="warn">Missing event date/time.</span> The countdown will prompt for a date.';
+  codeStatus.textContent = "";
+  if (!$("codeBlockMode").hidden) pagePreview.srcdoc = generatedCode;
 }
 
 function clearEventCodeForm() {
@@ -659,9 +640,7 @@ function clearEventCodeForm() {
   $("ticketBtnText").value = "Get Tickets";
   updateTimezoneLabel();
   updateTicketModeUI();
-  generatedCode = "";
-  codeStatus.textContent = "";
-  pagePreview.srcdoc = codePlaceholder();
+  generateEventCode();
 }
 
 async function copyEventCode() {
@@ -704,44 +683,38 @@ $("venueName").addEventListener("change", () => {
   customInput.hidden = selectedVenue !== "custom";
   if (selectedVenue !== "custom") customInput.value = "";
   $("venueAddress").value = venueData[selectedVenue] || "";
-  markCodeStale();
+  updateEventCodePreview();
 });
 
 $("ticketMode").addEventListener("change", () => {
   updateTicketModeUI();
-  markCodeStale();
+  updateEventCodePreview();
 });
 
 $("eventTz").addEventListener("change", () => {
   updateTimezoneLabel();
-  markCodeStale();
+  updateEventCodePreview();
 });
 
 [
   "eventName", "venueNameCustom", "venueAddress", "eventDate", "flyerUrl", "ticketUrl",
   "ticketEmbed", "ticketBtnText", "eventDescription", "spotifyInput", "soundcloudInput"
 ].forEach((id) => {
-  $(id).addEventListener("input", markCodeStale);
-  $(id).addEventListener("change", markCodeStale);
+  $(id).addEventListener("input", updateEventCodePreview);
+  $(id).addEventListener("change", updateEventCodePreview);
 });
 
-generateButton.addEventListener("click", generateEventCode);
 clearButton.addEventListener("click", clearEventCodeForm);
 copyButton.addEventListener("click", copyEventCode);
 
 updateTicketModeUI();
 updateTimezoneLabel();
 
-if (!$("eventDate").value) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  $("eventDate").value = `${year}-${month}-${day}T20:00`;
-}
+generateEventCode();
 
 export function activateEventCodeBlock() {
-  pagePreview.srcdoc = generatedCode || codePlaceholder();
+  generateEventCode();
+  pagePreview.srcdoc = generatedCode;
 }
 
 export function getEventCodeBlockCode() {
