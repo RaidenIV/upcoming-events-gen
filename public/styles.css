@@ -32,6 +32,93 @@ button,
 input,
 textarea { font: inherit; }
 
+/* ======= MENU NAV (Hamburger Style) ======= */
+.nav-dropdown {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  z-index: 9999;
+}
+
+.nav-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg);
+  color: #ffffff;
+  box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.6), -2px -2px 8px rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.nav-toggle-icon {
+  position: relative;
+  width: 18px;
+  height: 2px;
+  background: currentColor;
+  transition: 0.3s;
+}
+
+.nav-toggle-icon::before,
+.nav-toggle-icon::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 18px;
+  height: 2px;
+  background: currentColor;
+  transition: 0.3s;
+}
+
+.nav-toggle-icon::before { top: -6px; }
+.nav-toggle-icon::after { top: 6px; }
+.nav-dropdown.active .nav-toggle-icon { background: transparent; }
+.nav-dropdown.active .nav-toggle-icon::before { top: 0; transform: rotate(45deg); }
+.nav-dropdown.active .nav-toggle-icon::after { top: 0; transform: rotate(-45deg); }
+
+.nav-menu {
+  position: absolute;
+  top: 55px;
+  left: 0;
+  display: none;
+  min-width: 200px;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  background: var(--bg);
+  box-shadow: 10px 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+.nav-dropdown.active .nav-menu {
+  display: block;
+  animation: fadeInUp 0.2s ease;
+}
+
+.nav-menu a {
+  display: block;
+  padding: 12px;
+  border-radius: 8px;
+  color: #cccccc;
+  font-weight: 600;
+  text-decoration: none;
+  transition: 0.2s;
+}
+
+.nav-menu a:hover {
+  background: rgba(0, 153, 255, 0.1);
+  color: #0099ff;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 410px minmax(0, 1fr);
@@ -54,7 +141,7 @@ textarea { font: inherit; }
 
 .sidebar-header {
   display: block;
-  padding: 18px;
+  padding: 18px 18px 18px 76px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -423,7 +510,7 @@ textarea {
 }
 
 @media (max-width: 560px) {
-  .sidebar-header { padding: 14px; }
+  .sidebar-header { padding: 14px 14px 14px 72px; }
   .sidebar-header h1 { font-size: 18px; }
   .viewport-logo { height: 25px; max-width: 110px; }
   .viewport-frame-shell { padding: 8px; }

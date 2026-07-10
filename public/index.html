@@ -4,18 +4,31 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#000000" />
-  <title>Upcoming Events Page Generator</title>
+  <title>Event Page Generator</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
 <body>
+  <!-- Navigation Dropdown -->
+  <div class="nav-dropdown" id="navDropdown">
+    <button class="nav-toggle" id="navToggle" type="button" aria-label="Menu">
+      <span class="nav-toggle-icon" aria-hidden="true"></span>
+    </button>
+    <div class="nav-menu" role="menu" aria-label="Site navigation">
+      <a href="https://www.xodiamediagroup.com/" target="_top" rel="noopener">Home</a>
+      <a href="https://www.xodiamediagroup.com/upcoming-events" target="_top" rel="noopener">Upcoming Events</a>
+      <a href="https://www.xodiamediagroup.com/contact" target="_top" rel="noopener">Contact Us</a>
+      <a href="https://www.xodiamediagroup.com/tools" target="_top" rel="noopener">Tools</a>
+    </div>
+  </div>
+
   <main class="app-shell">
     <aside class="sidebar" aria-label="Upcoming event editor">
       <header class="sidebar-header">
         <div class="sidebar-title-row">
-          <h1>Upcoming Events Page Generator</h1>
+          <h1>Event Page Generator</h1>
           <a class="mode-toggle" href="/event_code_block.html" aria-label="Switch to Event Code Block Generator" title="Switch to Event Code Block Generator">
             <span class="mode-toggle-knob" aria-hidden="true"></span>
           </a>

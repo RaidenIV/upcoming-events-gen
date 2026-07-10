@@ -399,6 +399,33 @@ async function copyGeneratedCode() {
   }, 1400);
 }
 
+
+const navDropdown = document.getElementById("navDropdown");
+const navToggle = document.getElementById("navToggle");
+
+if (navDropdown && navToggle) {
+  navToggle.addEventListener("click", (event) => {
+    event.stopPropagation();
+    navDropdown.classList.toggle("active");
+  });
+
+  document.addEventListener("click", (event) => {
+    if (!navDropdown.contains(event.target)) {
+      navDropdown.classList.remove("active");
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      navDropdown.classList.remove("active");
+    }
+  });
+
+  navDropdown.querySelectorAll(".nav-menu a").forEach((link) => {
+    link.addEventListener("click", () => navDropdown.classList.remove("active"));
+  });
+}
+
 eventCountInput.addEventListener("change", () => resizeEventList(eventCountInput.value));
 eventEditors.addEventListener("input", handleEditorInput);
 eventEditors.addEventListener("change", handleEditorInput);

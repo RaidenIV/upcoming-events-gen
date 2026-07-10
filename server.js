@@ -159,5 +159,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Upcoming Events Page Generator listening on port ${PORT}`);
+  console.log(`Event Page Generator listening on port ${PORT}`);
 });
