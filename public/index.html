@@ -181,16 +181,34 @@
 
         <section class="generator-section">
           <div class="section-title">Music Embeds</div>
-          <p class="section-copy">Paste a Spotify or SoundCloud iframe. A normal URL will render as a button.</p>
+          <p class="section-copy">Choose Spotify or SoundCloud independently for each slot. Both embeds display side by side on the generated page.</p>
 
-          <div class="field-group">
-            <label for="spotifyInput">Spotify Embed Code or Link</label>
-            <textarea id="spotifyInput" placeholder="<iframe ...></iframe>  OR  https://open.spotify.com/..."></textarea>
+          <div class="music-slot">
+            <div class="field-group">
+              <label for="musicType1">Music Embed 1 Platform</label>
+              <select id="musicType1">
+                <option value="spotify" selected>Spotify</option>
+                <option value="soundcloud">SoundCloud</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="musicInput1">Embed Code or Link</label>
+              <textarea id="musicInput1" placeholder="<iframe ...></iframe>  OR  https://..."></textarea>
+            </div>
           </div>
 
-          <div class="field-group">
-            <label for="soundcloudInput">SoundCloud Embed Code or Link</label>
-            <textarea id="soundcloudInput" placeholder="<iframe ...></iframe>  OR  https://soundcloud.com/..."></textarea>
+          <div class="music-slot">
+            <div class="field-group">
+              <label for="musicType2">Music Embed 2 Platform</label>
+              <select id="musicType2">
+                <option value="spotify">Spotify</option>
+                <option value="soundcloud" selected>SoundCloud</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="musicInput2">Embed Code or Link</label>
+              <textarea id="musicInput2" placeholder="<iframe ...></iframe>  OR  https://..."></textarea>
+            </div>
           </div>
         </section>
       </div>

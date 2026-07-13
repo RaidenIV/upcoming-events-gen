@@ -59,8 +59,19 @@
 }
 
 #ticketEmbed,
-#spotifyInput,
-#soundcloudInput { min-height: 104px; }
+#musicInput1,
+#musicInput2 { min-height: 104px; }
+
+.music-slot {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.music-slot:first-of-type { margin-top: 10px; }
+.music-slot .field-group:first-child { margin-top: 0; }
 
 #eventDescription { min-height: 92px; }
 
