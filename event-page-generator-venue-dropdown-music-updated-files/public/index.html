@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#000000" />
+  <title>Event Page Generator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./css/base.css" />
+  <link rel="stylesheet" href="./css/upcoming-events.css" />
+  <link rel="stylesheet" href="./css/event-code-block.css" />
+</head>
+<body>
+  <header class="app-menu-bar">
+    <div class="menu-bar-left">
+      <div class="nav-dropdown" id="navDropdown">
+        <button class="nav-toggle" id="navToggle" type="button" aria-label="Menu" aria-expanded="false">
+          <span class="nav-toggle-icon" aria-hidden="true"></span>
+        </button>
+        <div class="nav-menu" role="menu" aria-label="Site navigation">
+          <a href="https://www.xodiamediagroup.com/" target="_top" rel="noopener">Home</a>
+          <a href="https://www.xodiamediagroup.com/upcoming-events" target="_top" rel="noopener">Upcoming Events</a>
+          <a href="https://www.xodiamediagroup.com/contact" target="_top" rel="noopener">Contact Us</a>
+          <a href="https://www.xodiamediagroup.com/tools" target="_top" rel="noopener">Tools</a>
+        </div>
+      </div>
+
+      <button
+        class="mode-toggle"
+        id="modeToggle"
+        type="button"
+        aria-label="Switch to Event Page Generator"
+        aria-pressed="false"
+        title="Switch to Event Page Generator"
+      >
+        <span class="mode-toggle-knob" aria-hidden="true"></span>
+      </button>
+    </div>
+
+    <div class="menu-bar-right">
+      <h1 id="appTitle" class="viewport-title">UPCOMING EVENTS PAGE GENERATOR</h1>
+      <img class="viewport-logo" src="./assets/white.svg" alt="AIGOX Software" />
+    </div>
+  </header>
+
+  <main class="app-workspace">
+    <aside id="upcomingMode" class="sidebar mode-panel" aria-label="Upcoming event editor">
+      <section class="sidebar-controls" aria-labelledby="event-count-label">
+        <label id="event-count-label" for="eventCount">Number of Events to Add</label>
+        <input id="eventCount" type="number" min="1" max="20" step="1" inputmode="numeric" />
+        <p class="field-hint">Only complete events dated today or later are included.</p>
+      </section>
+
+      <div id="eventEditors" class="event-editors" aria-live="polite"></div>
+
+      <footer class="sidebar-footer">
+        <div id="saveIndicator" class="save-indicator" role="status" aria-live="polite"></div>
+        <div id="pageStatus" class="page-status" role="status"></div>
+        <div class="footer-actions footer-actions-two">
+          <button id="copyCodeButton" class="primary-button" type="button">Copy Code</button>
+          <button id="savePageButton" class="secondary-button" type="button">Save</button>
+        </div>
+      </footer>
+    </aside>
+
+    <aside id="codeBlockMode" class="sidebar mode-panel" aria-label="Single event page editor" hidden>
+      <div class="code-editor-scroll">
+        <section class="generator-section">
+          <div class="section-title">Saved Event Pages</div>
+          <div class="saved-page-controls">
+            <select id="savedEventPages" aria-label="Previously saved event pages">
+              <option value="">Select a saved page...</option>
+            </select>
+            <button id="loadSavedEventButton" class="sidebar-action-button" type="button">Load</button>
+          </div>
+          <p id="savedPagesHint" class="field-hint">Save page details to the server, then load them later to regenerate the page.</p>
+        </section>
+
+        <section class="generator-section">
+          <div class="section-title">Import Generated Code</div>
+          <div class="field-group">
+            <label for="importEventCode">Paste Previously Generated Code</label>
+            <textarea id="importEventCode" class="code-import-input" placeholder="Paste a previously generated event page code block here..."></textarea>
+            <p class="field-hint">Pasted code is read into the editable fields and regenerated in the viewport.</p>
+          </div>
+          <button id="importEventCodeButton" class="sidebar-action-button full-width-action" type="button">Import Code</button>
+        </section>
+
+        <section class="generator-section">
+          <div class="section-title">Event Info</div>
+
+          <div class="field-group">
+            <label for="eventName">Event Name</label>
+            <input id="eventName" placeholder="SPACE CAMP: SKRILLEX" />
+          </div>
+
+          <div class="field-group">
+            <label for="venueName">Venue Name</label>
+            <select id="venueName">
+              <option value="">Select a venue or type custom...</option>
+              <option value="Skully's Music Diner">Skully's Music Diner</option>
+              <option value="The Cave Bar and Lounge">The Cave Bar and Lounge</option>
+              <option value="custom">Custom Venue</option>
+            </select>
+            <input id="venueNameCustom" class="field-followup" placeholder="Custom venue name" hidden />
+          </div>
+
+          <div class="field-group">
+            <label for="venueAddress">Venue Address</label>
+            <input id="venueAddress" placeholder="583 S High St, Columbus, OH 43215" />
+          </div>
+
+          <div class="field-group">
+            <label for="eventDate">Event Date &amp; Time</label>
+            <input id="eventDate" type="datetime-local" />
+          </div>
+
+          <div class="field-group timezone-field">
+            <label for="eventTz">Timezone</label>
+            <div class="timezone-row">
+              <span id="tzDisplay" class="timezone-label">ET</span>
+              <select id="eventTz">
+                <option value="America/New_York" selected>ET (America/New_York)</option>
+                <option value="America/Chicago">CT (America/Chicago)</option>
+                <option value="America/Denver">MT (America/Denver)</option>
+                <option value="America/Los_Angeles">PT (America/Los_Angeles)</option>
+                <option value="UTC">UTC</option>
+              </select>
+            </div>
+            <p class="field-hint">Countdown uses the selected timezone; viewers see their local time plus the label.</p>
+          </div>
+        </section>
+
+        <section class="generator-section">
+          <div class="section-title">Flyer Image</div>
+          <div class="field-group">
+            <label for="flyerUrl">Flyer Image URL</label>
+            <input id="flyerUrl" placeholder="https://.../flyer-square.jpg" />
+            <p class="field-hint">Upload to Squarespace, Imgur, or another image host and paste the URL here.</p>
+          </div>
+        </section>
+
+        <section class="generator-section">
+          <div class="section-title">Tickets</div>
+          <div class="code-row">
+            <div class="field-group">
+              <label for="ticketMode">Ticket Mode</label>
+              <select id="ticketMode">
+                <option value="embed">Embed code</option>
+                <option value="button">Button link</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="ticketBtnText">Button Text</label>
+              <input id="ticketBtnText" value="Get Tickets" />
+            </div>
+          </div>
+
+          <div id="ticketButtonWrap" class="field-group" hidden>
+            <label for="ticketUrl">Ticket URL</label>
+            <input id="ticketUrl" placeholder="https://posh.vip/e/..." />
+            <p class="field-hint">Use a Posh, Eventbrite, or direct checkout URL.</p>
+          </div>
+
+          <div id="ticketEmbedWrap" class="field-group">
+            <label for="ticketEmbed">Ticket Embed Code</label>
+            <textarea id="ticketEmbed" placeholder="<iframe ...></iframe>"></textarea>
+          </div>
+        </section>
+
+        <section class="generator-section">
+          <div class="section-title">Event Description</div>
+          <div class="field-group">
+            <label for="eventDescription">Description (Optional)</label>
+            <textarea id="eventDescription" placeholder="Enter event description to display above ticket checkout..."></textarea>
+            <p class="field-hint">This text appears above the ticket section.</p>
+          </div>
+        </section>
+
+        <section class="generator-section">
+          <div class="section-title">Music Embeds</div>
+          <p class="section-copy">Choose Spotify or SoundCloud independently for each slot. Both embeds display side by side on the generated page.</p>
+
+          <div class="music-slot">
+            <div class="field-group">
+              <label for="musicType1">Music Embed 1 Platform</label>
+              <select id="musicType1">
+                <option value="spotify" selected>Spotify</option>
+                <option value="soundcloud">SoundCloud</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="musicInput1">Embed Code or Link</label>
+              <textarea id="musicInput1" placeholder="<iframe ...></iframe>  OR  https://..."></textarea>
+            </div>
+          </div>
+
+          <div class="music-slot">
+            <div class="field-group">
+              <label for="musicType2">Music Embed 2 Platform</label>
+              <select id="musicType2">
+                <option value="spotify">Spotify</option>
+                <option value="soundcloud" selected>SoundCloud</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label for="musicInput2">Embed Code or Link</label>
+              <textarea id="musicInput2" placeholder="<iframe ...></iframe>  OR  https://..."></textarea>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <footer class="sidebar-footer code-sidebar-footer">
+        <div id="codeStatus" class="page-status" role="status" aria-live="polite"></div>
+        <div class="footer-actions footer-actions-three">
+          <button id="copyEventCodeButton" class="primary-button" type="button">Copy Code</button>
+          <button id="saveEventPageButton" class="secondary-button" type="button">Save Page</button>
+          <button id="clearCodeButton" class="secondary-button" type="button">Clear</button>
+        </div>
+      </footer>
+    </aside>
+
+    <section class="viewport-panel" aria-label="Live generated page preview">
+      <div class="viewport-frame-shell">
+        <iframe
+          id="pagePreview"
+          title="Generated page preview"
+          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+        ></iframe>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

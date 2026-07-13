@@ -1,0 +1,1130 @@
+"use strict";
+
+import { renderPreview } from "./preview.js";
+
+const $ = (id) => document.getElementById(id);
+const codeStatus = $("codeStatus");
+const clearButton = $("clearCodeButton");
+const copyButton = $("copyEventCodeButton");
+const saveEventPageButton = $("saveEventPageButton");
+const savedEventPagesSelect = $("savedEventPages");
+const loadSavedEventButton = $("loadSavedEventButton");
+const savedPagesHint = $("savedPagesHint");
+const importEventCodeInput = $("importEventCode");
+const importEventCodeButton = $("importEventCodeButton");
+
+let generatedCode = "";
+let savedEventPages = [];
+let currentSavedEventPageId = "";
+let savedPagesLoaded = false;
+
+function escapeHtml(s) {
+  return String(s)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function tzLabelFromIana(tz) {
+  const map = {
+    "America/New_York": "ET",
+    "America/Chicago": "CT",
+    "America/Denver": "MT",
+    "America/Los_Angeles": "PT",
+    "UTC": "UTC"
+  };
+  return map[tz] || "ET";
+}
+
+function getTimeZoneOffsetMinutes(dateUtc, timeZone) {
+  // dateUtc: Date object interpreted as an instant (UTC milliseconds)
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+  const parts = dtf.formatToParts(dateUtc);
+  const vals = {};
+  for (const p of parts) {
+    if (p.type !== 'literal') vals[p.type] = p.value;
+  }
+  const asUtc = Date.UTC(
+    Number(vals.year),
+    Number(vals.month) - 1,
+    Number(vals.day),
+    Number(vals.hour),
+    Number(vals.minute),
+    Number(vals.second)
+  );
+  return (asUtc - dateUtc.getTime()) / 60000;
+}
+
+function zonedLocalToUtcIso(localDateTimeStr, timeZone) {
+  // localDateTimeStr format: YYYY-MM-DDTHH:MM (from datetime-local)
+  if (!localDateTimeStr) return "";
+  const m = localDateTimeStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!m) return localDateTimeStr;
+  const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]), h = Number(m[4]), mi = Number(m[5]);
+
+  // initial guess: treat the local components as UTC
+  let utcMs = Date.UTC(y, mo, d, h, mi, 0);
+  let guess = new Date(utcMs);
+  let off = getTimeZoneOffsetMinutes(guess, timeZone);
+  utcMs = Date.UTC(y, mo, d, h, mi, 0) - off * 60000;
+
+  // second pass (handles DST transitions)
+  guess = new Date(utcMs);
+  off = getTimeZoneOffsetMinutes(guess, timeZone);
+  utcMs = Date.UTC(y, mo, d, h, mi, 0) - off * 60000;
+
+  return new Date(utcMs).toISOString();
+}
+
+function looksLikeIframeOrEmbedCode(s) {
+  const t = (s || "").trim();
+  if (!t) return false;
+  return /<iframe[\s>]/i.test(t) || /<script[\s>]/i.test(t) || /<blockquote[\s>]/i.test(t);
+}
+
+function looksLikeUrl(s) {
+  const t = (s || "").trim();
+  if (!t) return false;
+  return /^https?:\/\//i.test(t);
+}
+
+function normalizeMaybeEmbed(input, labelIfLink) {
+  const t = (input || "").trim();
+  if (!t) return "";
+  if (looksLikeIframeOrEmbedCode(t)) return t;
+  // else treat as link
+  const safe = escapeHtml(t);
+  const text = escapeHtml(labelIfLink || "Open");
+  return `<a class="xmg-linkbtn" href="${safe}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+}
+
+function normalizeMusicEmbeds(data) {
+  const validType = (type, fallback) => type === "soundcloud" ? "soundcloud" : (type === "spotify" ? "spotify" : fallback);
+  const supplied = Array.isArray(data?.musicEmbeds) ? data.musicEmbeds.slice(0, 2) : [];
+  if (supplied.length) {
+    const normalized = supplied.map((item, index) => ({
+      type: validType(item?.type, index === 1 ? "soundcloud" : "spotify"),
+      value: String(item?.value || "")
+    }));
+    while (normalized.length < 2) {
+      normalized.push({ type: normalized.length === 1 ? "soundcloud" : "spotify", value: "" });
+    }
+    return normalized;
+  }
+
+  return [
+    { type: "spotify", value: String(data?.spotifyInput || "") },
+    { type: "soundcloud", value: String(data?.soundcloudInput || "") }
+  ];
+}
+
+function formatEventDateLocal(localStr) {
+  if (!localStr) return { monthDay: 'TBA', year: '', dayLabel: '' };
+  const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const dayNames = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  const m = localStr.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!m) return { monthDay: 'TBA', year: '', dayLabel: '' };
+  const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
+  const dt = new Date(y, mo, d);
+  return { monthDay: `${months[mo]} ${d}`, year: String(y), dayLabel: dayNames[dt.getDay()] };
+}
+
+function generateSnippet(data) {
+  const eventName = escapeHtml(data.eventName || "Event");
+  const tzLabel = escapeHtml(data.tzLabel || "");
+  const eventISO = data.eventISO || "";
+  const venueName = escapeHtml(data.venueName || "");
+  const venueAddress = escapeHtml(data.venueAddress || "");
+  const eventDesc = (data.eventDescription || "").trim();
+  const flyerSrc = data.flyerUrlTrimmed ? escapeHtml(data.flyerUrlTrimmed) : "";
+  const dateFormatted = formatEventDateLocal(data.eventDateVal || "");
+
+  // Flyer
+  const flyerHtml = flyerSrc
+    ? `<div class="xmgR-flyer-frame"><img src="${flyerSrc}" alt="${eventName} flyer"></div>`
+    : `<div class="xmgR-flyer-frame xmgR-flyer-empty"><span>Flyer</span></div>`;
+
+  // Hero sub: use description if provided
+  const heroSub = eventDesc
+    ? `<div class="xmgR-hero-sub">${escapeHtml(eventDesc).replace(/\n/g,'<br>')}</div>`
+    : '';
+
+  // Venue badge
+  const venueBadgeHtml = (venueName || venueAddress)
+    ? `<div class="xmgR-venue-wrap"><div class="xmgR-venue-badge"><div class="xmgR-venue-name">${venueName}</div>${venueAddress ? `<div class="xmgR-venue-addr">${venueAddress}</div>` : ''}</div></div>`
+    : '';
+
+  // Ticket area
+  let ticketAreaHtml = '';
+  if (data.ticketMode === 'embed') {
+    const embedRaw = (data.ticketEmbed || '').trim();
+    if (embedRaw) {
+      if (looksLikeIframeOrEmbedCode(embedRaw)) {
+        const isPosh = /posh\.vip/i.test(embedRaw);
+        ticketAreaHtml = `<div class="xmgR-ticket-embed${isPosh ? ' xmgR-ticket-posh' : ''}">${embedRaw}</div>`;
+      } else if (looksLikeUrl(embedRaw)) {
+        ticketAreaHtml = `<a class="xmgR-ticket-btn" href="${escapeHtml(embedRaw)}" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>Buy Tickets Here</a>`;
+      }
+    }
+  } else {
+    const url = (data.ticketUrl || '').trim();
+    if (url) {
+      ticketAreaHtml = `<a class="xmgR-ticket-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>${escapeHtml(data.ticketBtnText || 'Get Tickets')}</a>`;
+    }
+  }
+
+  const ticketDisplayHtml = ticketAreaHtml || '<div class="xmgR-ticket-placeholder">Ticket link coming soon.</div>';
+
+  // Music
+  const musicBlocks = normalizeMusicEmbeds(data)
+    .map((item, index) => {
+      const label = item.type === "soundcloud" ? "Open SoundCloud" : "Open Spotify";
+      const html = normalizeMaybeEmbed(item.value, label);
+      if (!html) return "";
+      const type = escapeHtml(item.type);
+      const slot = index + 1;
+      return looksLikeIframeOrEmbedCode(html)
+        ? `<div class="xmgR-embed-frame" data-music-type="${type}" data-music-slot="${slot}">${html}</div>`
+        : `<div class="xmgR-link-wrap" data-music-type="${type}" data-music-slot="${slot}">${html}</div>`;
+    })
+    .filter(Boolean)
+    .join('\n');
+
+  const updatesCard = `<a href="https://www.xodiamediagroup.com/updates" target="_blank" rel="noopener noreferrer" class="xmgR-promo-card xmgR-updates-card">
+<div class="xmgR-promo-tag">// Updates</div>
+<h3 class="xmgR-promo-title">Stay in the Loop</h3>
+<p class="xmgR-promo-body">Get exclusive event updates, presale alerts, and announcements delivered straight to you.</p>
+<span class="xmgR-promo-arrow">Sign Up →</span>
+</a>`;
+
+  const musicSection = musicBlocks ? `<div class="xmgR-music-section">
+<div class="xmgR-section-header"><div class="xmgR-section-tag">// Music</div><h2 class="xmgR-section-h2">Listen Now</h2></div>
+<div class="xmgR-music-grid">${musicBlocks}</div>
+</div>` : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>${eventName}</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Barlow+Condensed:wght@300;400;600;700&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+:root{--cold:#00e5ff;--cold-dim:rgba(0,229,255,0.15);--cold-glow:rgba(0,229,255,0.4);--bg:#050508;--surface:rgba(255,255,255,0.04);--border:rgba(255,255,255,0.08);--text:#e8e8f0;--muted:rgba(232,232,240,0.5)}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;height:auto}
+body{font-family:'Barlow Condensed',sans-serif;background:var(--bg);color:var(--text);overflow-x:hidden;height:auto}
+#threejs-bg{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+body::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");pointer-events:none;z-index:1;opacity:0.4}
+.nav-dropdown{position:fixed;top:20px;left:20px;z-index:10000}
+.nav-toggle{background:rgba(5,5,8,0.85);border:1px solid var(--border);border-radius:8px;height:44px;width:48px;padding:0 14px;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all 0.3s ease;backdrop-filter:blur(20px)}
+.nav-toggle:hover{border-color:var(--cold);box-shadow:0 0 12px var(--cold-glow)}
+.nav-toggle-icon{position:relative;width:18px;height:2px;background:currentColor;border-radius:2px;transition:0.3s}
+.nav-toggle-icon::before,.nav-toggle-icon::after{content:"";position:absolute;width:18px;height:2px;background:currentColor;left:0;border-radius:2px;transition:0.3s}
+.nav-toggle-icon::before{top:-6px}
+.nav-toggle-icon::after{top:6px}
+.nav-dropdown.active .nav-toggle-icon{background:transparent}
+.nav-dropdown.active .nav-toggle-icon::before{top:0;transform:rotate(45deg)}
+.nav-dropdown.active .nav-toggle-icon::after{top:0;transform:rotate(-45deg)}
+.nav-menu{position:absolute;top:56px;left:0;background:rgba(5,5,8,0.95);border:1px solid var(--border);border-radius:10px;padding:6px;min-width:210px;opacity:0;visibility:hidden;transform:translateY(-8px);transition:all 0.25s ease;backdrop-filter:blur(20px)}
+.nav-dropdown.active .nav-menu{opacity:1;visibility:visible;transform:translateY(0)}
+.nav-menu a{display:block;padding:11px 16px;color:var(--muted);text-decoration:none;font-size:14px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;border-radius:6px;transition:all 0.2s ease}
+.nav-menu a:hover{background:var(--cold-dim);color:var(--cold)}
+.xmgR-page{max-width:1320px;margin:0 auto;padding:40px 24px 40px;position:relative;z-index:2}
+.xmgR-logo-wrap{display:flex;justify-content:center;margin-bottom:28px;animation:xmgR-fadeDown 0.6s ease both}
+.xmgR-logo-wrap img{height:42px;width:auto;filter:brightness(0) invert(1);opacity:0.7}
+.xmgR-hero-shell{margin-bottom:64px;animation:xmgR-fadeUp 0.8s 0.4s ease both}
+.xmgR-hero-grid{display:grid;grid-template-areas:'flyer copy info';grid-template-columns:minmax(260px,360px) minmax(0,1.2fr) minmax(260px,320px);gap:34px;align-items:start}
+.xmgR-hero-flyer{grid-area:flyer;display:flex;align-items:flex-start;justify-content:flex-start;min-width:0}
+.xmgR-hero-copy{grid-area:copy;display:flex;flex-direction:column;align-items:flex-start;min-width:0}
+.xmgR-hero-info{grid-area:info;display:flex;flex-direction:column;align-items:stretch;min-width:0}
+.xmgR-split-line{display:flex;align-items:center;justify-content:flex-start;gap:0;width:100%;margin-bottom:28px;animation:xmgR-fadeDown 0.7s 0.1s ease both}
+.xmgR-split-line span{display:block;height:1px;flex:1}
+.xmgR-split-line span:first-child{background:linear-gradient(to right,transparent,var(--cold))}
+.xmgR-split-line span:last-child{background:linear-gradient(to left,transparent,var(--cold))}
+.xmgR-split-line em{font-style:normal;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--muted);padding:0 18px;white-space:nowrap;font-family:'DM Mono',monospace;font-weight:300}
+.xmgR-hero-title{text-align:left;margin-bottom:12px;animation:xmgR-fadeDown 0.7s 0.15s ease both;width:100%}
+.xmgR-hero-title-text{font-family:'Bebas Neue',sans-serif;font-size:clamp(72px,10vw,150px);line-height:0.9;letter-spacing:0.02em;color:#ffffff;display:block;width:100%;max-width:100%;white-space:normal;word-break:break-word;text-wrap:balance}
+.xmgR-hero-sub{text-align:left;font-size:16px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);font-weight:400;margin-bottom:24px;font-family:'DM Mono',monospace;max-width:780px;animation:xmgR-fadeDown 0.7s 0.2s ease both}
+.xmgR-countdown-wrap{display:flex;justify-content:flex-start;align-items:flex-end;gap:0;margin-bottom:10px;flex-wrap:wrap;animation:xmgR-fadeDown 0.7s 0.25s ease both}
+.xmgR-count-unit{display:flex;flex-direction:column;align-items:center;padding:0 18px;position:relative}
+.xmgR-count-unit+.xmgR-count-unit::before{content:':';position:absolute;left:-4px;bottom:22px;font-family:'Bebas Neue',sans-serif;font-size:52px;color:rgba(255,255,255,0.2);line-height:1}
+.xmgR-count-num{font-family:'Bebas Neue',sans-serif;font-size:clamp(56px,8vw,88px);line-height:1;color:#ffffff;transition:color 0.3s}
+.xmgR-count-num.urgent{color:var(--cold);filter:drop-shadow(0 0 12px var(--cold-glow))}
+.xmgR-count-label{font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:var(--muted);font-family:'DM Mono',monospace;margin-top:4px}
+.xmgR-count-meta{text-align:left;font-family:'DM Mono',monospace;font-size:13px;color:var(--muted);margin-bottom:0;letter-spacing:0.06em;max-width:760px;animation:xmgR-fadeDown 0.7s 0.3s ease both}
+.xmgR-venue-wrap{display:flex;justify-content:flex-start;margin-bottom:18px;animation:xmgR-fadeDown 0.7s 0.32s ease both;width:100%}
+.xmgR-venue-badge{display:inline-flex;flex-direction:column;align-items:flex-start;border:1px solid var(--border);border-radius:12px;padding:18px 36px;background:var(--surface);backdrop-filter:blur(10px);position:relative;overflow:hidden}
+.xmgR-venue-badge::before{content:'';position:absolute;inset:0;background:var(--cold-dim);opacity:0.5}
+.xmgR-venue-name{font-size:20px;font-weight:700;letter-spacing:0.05em;text-transform:uppercase;position:relative;z-index:1}
+.xmgR-venue-addr{font-family:'DM Mono',monospace;font-size:12px;color:var(--muted);margin-top:4px;letter-spacing:0.06em;position:relative;z-index:1}
+.xmgR-flyer-frame{border-radius:16px;overflow:hidden;position:relative;box-shadow:0 0 0 1px var(--border),0 30px 80px rgba(0,0,0,0.6);width:100%}
+.xmgR-flyer-frame::before{content:'';position:absolute;inset:0;z-index:1;background:rgba(0,229,255,0.04);pointer-events:none}
+.xmgR-flyer-frame img{width:100%;aspect-ratio:1/1;object-fit:cover;display:block;filter:saturate(1.1) contrast(1.05)}
+.xmgR-flyer-empty{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;border:2px dashed var(--border);color:var(--muted);font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.1em}
+.xmgR-ticket-block{display:flex;flex-direction:column;gap:18px;justify-content:flex-start;align-items:flex-start;width:100%;max-width:none}
+.xmgR-section-tag{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:var(--cold);margin-bottom:4px}
+.xmgR-event-date-big{font-family:'Bebas Neue',sans-serif;font-size:clamp(40px,5vw,60px);line-height:1;color:#fff;letter-spacing:0.04em}
+.xmgR-event-date-day{font-size:14px;letter-spacing:0.15em;text-transform:uppercase;color:var(--muted);font-weight:400;margin-top:2px}
+.xmgR-ticket-btn{display:flex;align-items:center;justify-content:center;gap:12px;text-decoration:none;background:var(--cold);color:#000;padding:18px 32px;border-radius:12px;font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:0.08em;transition:all 0.3s ease;position:relative;overflow:hidden;box-shadow:0 8px 32px rgba(0,229,255,0.25);width:100%}
+.xmgR-ticket-btn::after{content:'';position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.2),transparent);transition:left 0.5s ease}
+.xmgR-ticket-btn:hover::after{left:100%}
+.xmgR-ticket-btn:hover{transform:translateY(-3px);box-shadow:0 16px 48px rgba(0,229,255,0.4)}
+.xmgR-ticket-btn svg{width:22px;height:22px;flex-shrink:0}
+.xmgR-ticket-embed{width:100%;max-width:560px}
+.xmgR-ticket-embed iframe{width:100%;min-height:420px;border:1px solid var(--border);border-radius:12px;background:#fff}
+.xmgR-ticket-posh iframe{min-height:250px!important;max-height:250px!important;height:250px!important;background:#000}
+.xmgR-music-section{padding-top:48px;border-top:1px solid var(--border);animation:xmgR-fadeUp 0.8s 0.5s ease both;max-width:1120px;margin:0 auto}
+.xmgR-section-header{margin-bottom:28px;text-align:center}
+.xmgR-section-h2{font-family:'Bebas Neue',sans-serif;font-size:48px;letter-spacing:0.06em;color:#ffffff}
+.xmgR-music-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start;max-width:1100px;margin:0 auto}
+.xmgR-embed-frame{width:100%;border-radius:14px;overflow:hidden;border:1px solid var(--border);background:#111}
+.xmgR-embed-frame iframe{display:block;width:100%;border:none;min-height:352px}
+.xmg-linkbtn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:var(--cold-dim);color:var(--cold);padding:12px 20px;border-radius:10px;font-weight:700;border:1px solid var(--cold);letter-spacing:0.06em}
+.xmg-linkbtn:hover{background:rgba(0,229,255,0.25)}
+.xmgR-link-wrap{width:100%;margin-bottom:0;text-align:center}
+.xmgR-promo-card{text-decoration:none;color:inherit;display:block;background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:28px;overflow:hidden;position:relative;transition:all 0.35s cubic-bezier(0.4,0,0.2,1);width:100%;max-width:560px}
+.xmgR-promo-card:hover{border-color:var(--cold);transform:translateY(-4px);box-shadow:0 12px 40px rgba(0,229,255,0.2)}
+.xmgR-promo-tag{font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:var(--cold);margin-bottom:12px}
+.xmgR-promo-title{font-family:'Bebas Neue',sans-serif;font-size:36px;letter-spacing:0.04em;margin-bottom:10px;line-height:1;color:#fff}
+.xmgR-promo-body{font-size:14px;line-height:1.7;color:var(--muted);margin-bottom:20px}
+.xmgR-promo-arrow{display:inline-flex;align-items:center;gap:8px;font-family:'DM Mono',monospace;font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:var(--cold);transition:gap 0.3s ease}
+.xmgR-promo-card:hover .xmgR-promo-arrow{gap:14px}
+.xmgR-footer-line{margin-top:32px;padding-top:24px;border-top:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;animation:xmgR-fadeUp 0.8s 0.6s ease both}
+.xmgR-footer-credit{font-family:'DM Mono',monospace;font-size:11px;color:var(--muted);letter-spacing:0.08em}
+.xmgR-footer-logo img{height:24px;width:auto;filter:brightness(0) invert(1);opacity:0.35}
+@keyframes xmgR-fadeDown{from{opacity:0;transform:translateY(-16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes xmgR-fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:1100px){.xmgR-hero-grid{grid-template-areas:'flyer copy' 'info info';grid-template-columns:minmax(260px,360px) minmax(0,1fr);gap:30px}}
+@media(max-width:900px){.xmgR-hero-grid{grid-template-areas:'flyer' 'copy' 'info';grid-template-columns:1fr;gap:28px}.xmgR-hero-flyer .xmgR-flyer-frame{max-width:480px;margin:0 auto}.xmgR-hero-copy,.xmgR-hero-info{align-items:center}.xmgR-split-line,.xmgR-hero-title,.xmgR-hero-sub,.xmgR-countdown-wrap,.xmgR-count-meta,.xmgR-venue-wrap{text-align:center;justify-content:center}.xmgR-venue-badge{align-items:center}.xmgR-ticket-block{max-width:100%;margin:0 auto;align-items:stretch}}
+@media(max-width:760px){.xmgR-music-grid{grid-template-columns:1fr;max-width:760px}}
+@media(max-width:600px){.xmgR-page{padding:28px 16px 60px}.xmgR-count-unit{padding:0 10px}.xmgR-count-unit+.xmgR-count-unit::before{font-size:36px;bottom:18px}.xmgR-ticket-btn{font-size:24px;padding:16px 20px}.xmgR-hero-sub{font-size:13px}.xmgR-footer-line{flex-direction:column;gap:12px;text-align:center}}
+/* Kill Squarespace page padding — injected via Page Header Code Injection */
+
+#page,#canvas,#content,main,#main,.sqs-layout,.sqs-row,.page-section,.content-wrapper,.view-list,.site-content,.Interior{padding-top:0!important;padding-bottom:0!important;min-height:0!important;}
+.sqs-block-content,.sqs-col-12,.sqs-row{padding:0!important;margin:0!important;}
+/* v16 layout overrides */
+.xmgR-hero-grid{--xmgR-side-col:clamp(240px,24vw,340px);--xmgR-title-col:clamp(420px,34vw,620px);display:grid;grid-template-areas:'flyer copy updates';grid-template-columns:var(--xmgR-side-col) var(--xmgR-title-col) var(--xmgR-side-col);gap:34px;align-items:start;justify-content:center}
+.xmgR-hero-flyer{grid-area:flyer;display:flex;align-items:stretch;justify-content:center;min-width:0}
+.xmgR-hero-copy{grid-area:copy;display:flex;flex-direction:column;align-items:center;justify-self:center;min-width:0;width:100%;max-width:var(--xmgR-title-col)}
+.xmgR-hero-updates{grid-area:updates;display:flex;align-items:stretch;justify-content:center;min-width:0}
+.xmgR-side-square{width:100%}
+.xmgR-side-square>*{width:100%}
+.xmgR-split-line{justify-content:center}
+.xmgR-hero-title{text-align:center;width:100%;margin-bottom:12px}
+.xmgR-hero-sub{text-align:center;max-width:760px;margin:0 auto 24px}
+.xmgR-countdown-wrap{justify-content:center}
+.xmgR-count-meta{text-align:center;margin:0 auto;max-width:760px}
+.xmgR-below-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;width:min(50%,720px);margin:52px auto 0;align-items:start;justify-content:center}
+.xmgR-info-card,.xmgR-ticket-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px 20px;backdrop-filter:blur(10px);display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start;width:100%;max-width:100%}
+.xmgR-ticket-panel{align-self:start}
+.xmgR-mobile-ticket-panel{display:none}
+.xmgR-event-stack{margin-bottom:12px}
+.xmgR-info-card .xmgR-venue-wrap{width:100%;margin-bottom:0;animation:none;justify-content:flex-start}
+.xmgR-info-card .xmgR-venue-badge{width:100%;padding:14px 16px}
+.xmgR-info-card .xmgR-event-date-big{font-size:clamp(34px,4vw,50px)}
+.xmgR-info-card .xmgR-event-date-day{font-size:12px}
+.xmgR-ticket-panel .xmgR-ticket-block{width:100%;max-width:none;align-items:stretch;gap:12px;flex:1;min-height:0}
+.xmgR-ticket-panel .xmgR-ticket-btn{padding:14px 24px;font-size:24px}
+.xmgR-ticket-panel .xmgR-ticket-embed{width:100%;max-width:none;display:flex;flex:1;min-height:0}
+.xmgR-ticket-panel .xmgR-ticket-embed iframe{width:100%;height:100%;min-height:0;flex:1}
+.xmgR-ticket-placeholder{width:100%;min-height:68px;border:1px dashed var(--border);border-radius:12px;display:flex;align-items:center;justify-content:center;padding:14px 16px;text-align:center;color:var(--muted);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase}
+.xmgR-hero-updates .xmgR-promo-card{max-width:none}
+.xmgR-updates-card{aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:center;padding:32px}
+.xmgR-updates-card .xmgR-promo-body{margin-bottom:24px}
+@media(max-width:1100px){
+.xmgR-hero-grid{--xmgR-side-col:clamp(220px,24vw,280px);--xmgR-title-col:clamp(360px,36vw,540px);gap:24px}
+.xmgR-below-grid{width:min(70%,680px)}
+}
+@media(max-width:900px){
+.xmgR-hero-shell{display:grid;grid-template-columns:1fr;grid-template-areas:'split' 'copy' 'flyer' 'updates' 'info';gap:20px}
+.xmgR-split-line{grid-area:split;margin-bottom:8px}
+.xmgR-hero-grid,.xmgR-below-grid{display:contents}
+.xmgR-hero-copy{grid-area:copy}
+.xmgR-hero-flyer{grid-area:flyer}
+.xmgR-ticket-panel{display:none}
+.xmgR-mobile-ticket-panel{display:flex;flex-direction:column;align-items:stretch;width:100%;max-width:480px;margin:0 auto 24px}
+.xmgR-mobile-ticket-panel .xmgR-ticket-block{width:100%;max-width:none;align-items:stretch;gap:12px}
+.xmgR-hero-updates{grid-area:updates}
+.xmgR-info-card{grid-area:info;width:100%;max-width:560px;margin:0 auto}
+.xmgR-hero-copy,.xmgR-hero-flyer,.xmgR-hero-updates{align-items:center;justify-content:center}
+.xmgR-side-square{max-width:480px;margin:0 auto}
+.xmgR-info-card{align-items:stretch}
+}
+@media(max-width:600px){
+.xmgR-info-card,.xmgR-ticket-panel{padding:16px}
+.xmgR-updates-card{padding:24px}
+}
+</style>
+</head>
+<body>
+<canvas id="threejs-bg"></canvas>
+<div class="nav-dropdown" id="navDropdown">
+<button class="nav-toggle" id="navToggle" type="button" aria-label="Menu">
+  <span class="nav-toggle-icon" aria-hidden="true"></span>
+</button>
+<div class="nav-menu" role="menu" aria-label="Site navigation">
+  <a href="https://www.xodiamediagroup.com/" target="_top" rel="noopener">Home</a>
+  <a href="https://www.xodiamediagroup.com/upcoming-events" target="_top" rel="noopener">Upcoming Events</a>
+  <a href="https://www.xodiamediagroup.com/contact" target="_top" rel="noopener">Contact Us</a>
+  <a href="https://www.xodiamediagroup.com/tools" target="_top" rel="noopener">Tools</a>
+</div>
+</div>
+<div class="xmgR-page" data-event-iso="${escapeHtml(eventISO)}" data-tz-label="${tzLabel}">
+<div class="xmgR-logo-wrap">
+  <img src="https://images.squarespace-cdn.com/content/v1/681ea18dd168a935c26295bd/c311da3d-6fbf-446a-858c-227fa011e7e3/Xodia+MEDIA+Group+%28TRANS%29+%281%29+%281%29.png?format=750w" alt="Xodia Media Group">
+</div>
+<div class="xmgR-hero-shell">
+  <div class="xmgR-split-line"><span></span><em>Presents</em><span></span></div>
+  <div class="xmgR-hero-grid">
+    <div class="xmgR-hero-flyer xmgR-side-square">${flyerHtml}</div>
+    <div class="xmgR-hero-copy">
+      <div class="xmgR-hero-title"><span class="xmgR-hero-title-text">${eventName}</span></div>
+      ${heroSub}
+      <div class="xmgR-mobile-ticket-panel">
+        <div class="xmgR-ticket-block">
+          ${ticketDisplayHtml}
+        </div>
+      </div>
+      <div class="xmgR-countdown-wrap">
+        <div class="xmgR-count-unit"><span class="xmgR-count-num" data-unit="days">00</span><span class="xmgR-count-label">Days</span></div>
+        <div class="xmgR-count-unit"><span class="xmgR-count-num" data-unit="hours">00</span><span class="xmgR-count-label">Hours</span></div>
+        <div class="xmgR-count-unit"><span class="xmgR-count-num" data-unit="mins">00</span><span class="xmgR-count-label">Mins</span></div>
+        <div class="xmgR-count-unit"><span class="xmgR-count-num" data-unit="secs">00</span><span class="xmgR-count-label">Secs</span></div>
+      </div>
+      <div class="xmgR-count-meta" data-meta></div>
+    </div>
+    <div class="xmgR-hero-updates xmgR-side-square">${updatesCard}</div>
+  </div>
+  <div class="xmgR-below-grid">
+    <div class="xmgR-info-card">
+      <div class="xmgR-section-tag">// Event Info</div>
+      <div class="xmgR-event-stack">
+        <div class="xmgR-event-date-big">${dateFormatted.monthDay}<br>${dateFormatted.year}</div>
+        <div class="xmgR-event-date-day">${dateFormatted.dayLabel}</div>
+      </div>
+      ${venueBadgeHtml}
+    </div>
+    <div class="xmgR-ticket-panel">
+      <div class="xmgR-section-tag">// Tickets</div>
+      <div class="xmgR-ticket-block">
+        ${ticketDisplayHtml}
+      </div>
+    </div>
+  </div>
+</div>
+${musicSection}
+<div class="xmgR-footer-line">
+  <span class="xmgR-footer-credit">&copy; ${dateFormatted.year || new Date().getFullYear()} Xodia Media Group</span>
+  <div class="xmgR-footer-logo"><img src="https://images.squarespace-cdn.com/content/v1/681ea18dd168a935c26295bd/c311da3d-6fbf-446a-858c-227fa011e7e3/Xodia+MEDIA+Group+%28TRANS%29+%281%29+%281%29.png?format=750w" alt="Xodia Media Group"></div>
+</div>
+</div>
+<scr` + `ipt>
+(function(){
+var nd=document.getElementById('navDropdown');
+var nt=document.getElementById('navToggle');
+nt.addEventListener('click',function(e){e.stopPropagation();nd.classList.toggle('active')});
+document.addEventListener('click',function(e){if(!nd.contains(e.target))nd.classList.remove('active')});
+var r=document.querySelector('.xmgR-page');
+if(!r||r.__xmgRInit)return;r.__xmgRInit=true;
+var iso=r.getAttribute('data-event-iso')||'';
+var tz=r.getAttribute('data-tz-label')||'';
+var metaEl=r.querySelector('[data-meta]');
+var units={days:r.querySelector('[data-unit="days"]'),hours:r.querySelector('[data-unit="hours"]'),mins:r.querySelector('[data-unit="mins"]'),secs:r.querySelector('[data-unit="secs"]')};
+var titleWrap=r.querySelector('.xmgR-hero-title');
+var titleText=r.querySelector('.xmgR-hero-title-text');
+var fitTitleRAF=0;
+function fitTitle(){
+if(!titleWrap||!titleText)return;
+var wrapWidth=titleWrap.clientWidth||titleWrap.getBoundingClientRect().width||0;
+if(!wrapWidth)return;
+var vw=window.innerWidth||document.documentElement.clientWidth||1280;
+var max=vw<=600?72:(vw<=900?94:150);
+var min=vw<=600?30:(vw<=900?38:44);
+var size=max;
+titleText.style.fontSize=size+'px';
+titleText.style.lineHeight='0.9';
+titleText.style.maxWidth='100%';
+titleText.style.width='100%';
+titleText.style.display='block';
+titleText.style.whiteSpace='normal';
+var maxLines=vw<=600?3:2;
+while(size>min){
+  var box=titleText.getBoundingClientRect();
+  var lineHeight=Math.max(1,size*0.9);
+  var maxHeight=(lineHeight*maxLines)+2;
+  var fitsWidth=titleText.scrollWidth<=wrapWidth+1;
+  var fitsHeight=box.height<=maxHeight;
+  if(fitsWidth&&fitsHeight)break;
+  size-=1;
+  titleText.style.fontSize=size+'px';
+}
+titleText.style.fontSize=Math.max(size,min)+'px';
+}
+function scheduleFitTitle(){
+if(fitTitleRAF)cancelAnimationFrame(fitTitleRAF);
+fitTitleRAF=requestAnimationFrame(function(){
+  fitTitleRAF=requestAnimationFrame(function(){
+    fitTitle();
+  });
+});
+}
+function syncTicketPanelSize(){
+var infoCard=r.querySelector('.xmgR-info-card');
+var ticketPanel=r.querySelector('.xmgR-ticket-panel');
+var ticketEmbed=ticketPanel&&ticketPanel.querySelector('.xmgR-ticket-embed');
+var iframe=ticketEmbed&&ticketEmbed.querySelector('iframe');
+if(!infoCard||!ticketPanel)return;
+ticketPanel.style.height='';
+ticketPanel.style.minHeight='';
+if(ticketEmbed&&window.innerWidth>900){
+  var infoH=Math.ceil(infoCard.getBoundingClientRect().height||infoCard.offsetHeight||0);
+  if(infoH>0){
+    ticketPanel.style.height=infoH+'px';
+    ticketPanel.style.minHeight=infoH+'px';
+    if(iframe){
+      var styles=window.getComputedStyle(ticketPanel);
+      var block=ticketPanel.querySelector('.xmgR-ticket-block');
+      var tag=ticketPanel.querySelector('.xmgR-section-tag');
+      var pt=parseFloat(styles.paddingTop)||0;
+      var pb=parseFloat(styles.paddingBottom)||0;
+      var tagH=tag?tag.getBoundingClientRect().height:0;
+      var gap=block?parseFloat(window.getComputedStyle(block).gap||0):0;
+      var inner=Math.max(120,infoH-pt-pb-tagH-gap);
+      iframe.style.height=inner+'px';
+    }
+  }
+}else if(iframe){
+  iframe.style.height='';
+}
+}
+function pad(n){return String(n).padStart(2,'0')}
+if(!iso){if(metaEl)metaEl.textContent='';return}
+var tgt=new Date(iso);
+if(isNaN(tgt.getTime()))return;
+function tick(){
+var diff=tgt.getTime()-Date.now();var ended=diff<=0;if(ended)diff=0;
+var sec=Math.floor(diff/1000);
+var days=Math.floor(sec/86400);var rem=sec%86400;
+var hrs=Math.floor(rem/3600);rem=rem%3600;var mins=Math.floor(rem/60);var secs=rem%60;
+var urgent=diff<86400000;var cls='xmgR-count-num'+(urgent?' urgent':'');
+if(units.days){units.days.textContent=days;units.days.className=cls}
+if(units.hours){units.hours.textContent=pad(hrs);units.hours.className=cls}
+if(units.mins){units.mins.textContent=pad(mins);units.mins.className=cls}
+if(units.secs){units.secs.textContent=pad(secs);units.secs.className=cls}
+var ds=tgt.toLocaleString(undefined,{year:'numeric',month:'short',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+if(metaEl)metaEl.textContent=(ended?'Event started: ':'Event starts: ')+ds+(tz?' '+tz:'');
+if(ended)clearInterval(tmr);
+}
+tick();var tmr=setInterval(tick,1000);
+scheduleFitTitle();
+syncTicketPanelSize();
+window.addEventListener('resize',function(){scheduleFitTitle();syncTicketPanelSize();});
+window.addEventListener('load',function(){scheduleFitTitle();syncTicketPanelSize();});
+setTimeout(function(){scheduleFitTitle();syncTicketPanelSize();},0);
+setTimeout(function(){scheduleFitTitle();syncTicketPanelSize();},150);
+setTimeout(function(){scheduleFitTitle();syncTicketPanelSize();},500);
+if(document.fonts&&document.fonts.ready){document.fonts.ready.then(function(){scheduleFitTitle();syncTicketPanelSize();}).catch(function(){});}
+if(window.ResizeObserver){
+try{
+  var syncRO=new ResizeObserver(function(){scheduleFitTitle();syncTicketPanelSize();});
+  if(titleWrap)syncRO.observe(titleWrap);
+  var infoCardRO=r.querySelector('.xmgR-info-card');
+  if(infoCardRO)syncRO.observe(infoCardRO);
+  var ticketPanelRO=r.querySelector('.xmgR-ticket-panel');
+  if(ticketPanelRO)syncRO.observe(ticketPanelRO);
+}catch(e){}
+}
+})();
+</scr` + `ipt>
+<scr` + `ipt src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></scr` + `ipt>
+<scr` + `ipt>
+(function(){
+var canvas=document.getElementById('threejs-bg');
+var renderer=new THREE.WebGLRenderer({canvas:canvas,antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setClearColor(0x000000,1);
+var scene=new THREE.Scene();
+var camera=new THREE.PerspectiveCamera(60,window.innerWidth/window.innerHeight,0.1,2000);
+camera.position.z=500;
+var PARTICLE_COUNT=3500;
+var positions=new Float32Array(PARTICLE_COUNT*3);
+var colors=new Float32Array(PARTICLE_COUNT*3);
+var speeds=new Float32Array(PARTICLE_COUNT);
+var colorPalette=[new THREE.Color(0x0099ff),new THREE.Color(0x00ffff),new THREE.Color(0xffffff),new THREE.Color(0x66ccff)];
+for(var i=0;i<PARTICLE_COUNT;i++){
+positions[i*3]=(Math.random()-0.5)*2000;
+positions[i*3+1]=(Math.random()-0.5)*2000;
+positions[i*3+2]=(Math.random()-0.5)*1200;
+var c=colorPalette[Math.floor(Math.random()*colorPalette.length)];
+var brightness=(c.equals(colorPalette[2])?0.9+Math.random()*0.1:1.0);
+colors[i*3]=c.r*brightness;
+colors[i*3+1]=c.g*brightness;
+colors[i*3+2]=c.b*brightness;
+speeds[i]=0.08+Math.random()*0.18;
+}
+var geometry=new THREE.BufferGeometry();
+geometry.setAttribute('position',new THREE.BufferAttribute(positions,3));
+geometry.setAttribute('color',new THREE.BufferAttribute(colors,3));
+var spriteCanvas=document.createElement('canvas');
+spriteCanvas.width=64;spriteCanvas.height=64;
+var sctx=spriteCanvas.getContext('2d');
+var grad=sctx.createRadialGradient(32,32,0,32,32,32);
+grad.addColorStop(0,'rgba(255,255,255,1)');
+grad.addColorStop(0.4,'rgba(255,255,255,0.9)');
+grad.addColorStop(0.7,'rgba(255,255,255,0.4)');
+grad.addColorStop(1,'rgba(255,255,255,0)');
+sctx.fillStyle=grad;sctx.beginPath();sctx.arc(32,32,32,0,Math.PI*2);sctx.fill();
+var spriteTexture=new THREE.CanvasTexture(spriteCanvas);
+var material=new THREE.PointsMaterial({size:3.5,vertexColors:true,transparent:true,opacity:1.0,sizeAttenuation:true,depthWrite:false,map:spriteTexture,alphaTest:0.01});
+var particles=new THREE.Points(geometry,material);
+scene.add(particles);
+var mouseX=0,mouseY=0;
+document.addEventListener('mousemove',function(e){mouseX=(e.clientX/window.innerWidth-0.5)*2;mouseY=(e.clientY/window.innerHeight-0.5)*2});
+window.addEventListener('resize',function(){camera.aspect=window.innerWidth/window.innerHeight;camera.updateProjectionMatrix();renderer.setSize(window.innerWidth,window.innerHeight)});
+var pos=geometry.attributes.position.array;
+var time=0;
+function animate(){
+requestAnimationFrame(animate);
+time+=0.001;
+for(var i=0;i<PARTICLE_COUNT;i++){
+  pos[i*3+1]+=speeds[i];
+  pos[i*3]+=Math.sin(time+i*0.5)*0.04;
+  if(pos[i*3+1]>1000)pos[i*3+1]=-1000;
+}
+geometry.attributes.position.needsUpdate=true;
+camera.position.x+=(mouseX*40-camera.position.x)*0.03;
+camera.position.y+=(-mouseY*40-camera.position.y)*0.03;
+particles.rotation.y=time*0.05;
+renderer.render(scene,camera);
+}
+animate();
+})();
+</scr` + `ipt>
+</body>
+</html>`;
+}
+
+function updateTicketModeUI() {
+  const isButton = $("ticketMode").value === "button";
+  $("ticketButtonWrap").hidden = !isButton;
+  $("ticketEmbedWrap").hidden = isButton;
+}
+
+function updateTimezoneLabel() {
+  $("tzDisplay").textContent = tzLabelFromIana($("eventTz").value);
+}
+
+function selectedVenueName() {
+  return $("venueName").value === "custom"
+    ? $("venueNameCustom").value.trim()
+    : $("venueName").value;
+}
+
+function collectEventDetails() {
+  const musicEmbeds = [1, 2].map((slot) => ({
+    type: $(`musicType${slot}`).value === "soundcloud" ? "soundcloud" : "spotify",
+    value: $(`musicInput${slot}`).value
+  }));
+  return {
+    eventName: $("eventName").value.trim(),
+    venueName: selectedVenueName(),
+    venueAddress: $("venueAddress").value.trim(),
+    eventDate: $("eventDate").value,
+    eventTz: $("eventTz").value,
+    flyerUrl: $("flyerUrl").value.trim(),
+    ticketMode: $("ticketMode").value === "embed" ? "embed" : "button",
+    ticketUrl: $("ticketUrl").value.trim(),
+    ticketEmbed: $("ticketEmbed").value,
+    ticketBtnText: $("ticketBtnText").value.trim() || "Get Tickets",
+    eventDescription: $("eventDescription").value.trim(),
+    musicEmbeds,
+    spotifyInput: musicEmbeds.find((item) => item.type === "spotify")?.value || "",
+    soundcloudInput: musicEmbeds.find((item) => item.type === "soundcloud")?.value || ""
+  };
+}
+
+function setVenueFromName(venueName) {
+  const value = String(venueName || "").trim();
+  const presetNames = Object.keys(venueData);
+  if (presetNames.includes(value)) {
+    $("venueName").value = value;
+    $("venueNameCustom").value = "";
+    $("venueNameCustom").hidden = true;
+    return;
+  }
+
+  if (value) {
+    $("venueName").value = "custom";
+    $("venueNameCustom").value = value;
+    $("venueNameCustom").hidden = false;
+    return;
+  }
+
+  $("venueName").value = "";
+  $("venueNameCustom").value = "";
+  $("venueNameCustom").hidden = true;
+}
+
+function applyEventDetails(details, savedPageId = "") {
+  const next = details && typeof details === "object" ? details : {};
+  $("eventName").value = String(next.eventName || "");
+  setVenueFromName(next.venueName);
+  $("venueAddress").value = String(next.venueAddress || "");
+  $("eventDate").value = String(next.eventDate || "");
+  $("eventTz").value = [
+    "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "UTC"
+  ].includes(next.eventTz) ? next.eventTz : "America/New_York";
+  $("flyerUrl").value = String(next.flyerUrl || "");
+  $("ticketMode").value = next.ticketMode === "embed" ? "embed" : "button";
+  $("ticketUrl").value = String(next.ticketUrl || "");
+  $("ticketEmbed").value = String(next.ticketEmbed || "");
+  $("ticketBtnText").value = String(next.ticketBtnText || "Get Tickets");
+  $("eventDescription").value = String(next.eventDescription || "");
+  const musicEmbeds = normalizeMusicEmbeds(next);
+  musicEmbeds.forEach((item, index) => {
+    const slot = index + 1;
+    $(`musicType${slot}`).value = item.type;
+    $(`musicInput${slot}`).value = item.value;
+  });
+  rememberVenue(next.venueName, next.venueAddress);
+
+  currentSavedEventPageId = savedPageId;
+  savedEventPagesSelect.value = savedPageId;
+  updateTimezoneLabel();
+  updateTicketModeUI();
+  generateEventCode();
+}
+
+function tzIanaFromLabel(label) {
+  const map = {
+    ET: "America/New_York",
+    CT: "America/Chicago",
+    MT: "America/Denver",
+    PT: "America/Los_Angeles",
+    UTC: "UTC"
+  };
+  return map[String(label || "").trim().toUpperCase()] || "America/New_York";
+}
+
+function utcIsoToZonedLocalInput(iso, timeZone) {
+  const date = new Date(iso);
+  if (!iso || Number.isNaN(date.getTime())) return "";
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+  const values = {};
+  formatter.formatToParts(date).forEach((part) => {
+    if (part.type !== "literal") values[part.type] = part.value;
+  });
+  return `${values.year}-${values.month}-${values.day}T${values.hour}:${values.minute}`;
+}
+
+function textWithBreaks(element) {
+  if (!element) return "";
+  const clone = element.cloneNode(true);
+  clone.querySelectorAll("br").forEach((br) => br.replaceWith("\n"));
+  return clone.textContent.trim();
+}
+
+function parseGeneratedEventCode(code) {
+  const documentFragment = new DOMParser().parseFromString(code, "text/html");
+  const root = documentFragment.querySelector(".xmgR-page");
+  const titleElement = documentFragment.querySelector(".xmgR-hero-title-text");
+  if (!root || !titleElement) {
+    throw new Error("This does not appear to be a generated single-event page.");
+  }
+
+  const tzLabel = root.getAttribute("data-tz-label") || "ET";
+  const eventTz = tzIanaFromLabel(tzLabel);
+  const eventISO = root.getAttribute("data-event-iso") || "";
+  const details = {
+    eventName: titleElement.textContent.trim(),
+    venueName: documentFragment.querySelector(".xmgR-venue-name")?.textContent.trim() || "",
+    venueAddress: documentFragment.querySelector(".xmgR-venue-addr")?.textContent.trim() || "",
+    eventDate: utcIsoToZonedLocalInput(eventISO, eventTz),
+    eventTz,
+    flyerUrl: "",
+    ticketMode: "button",
+    ticketUrl: "",
+    ticketEmbed: "",
+    ticketBtnText: "Get Tickets",
+    eventDescription: textWithBreaks(documentFragment.querySelector(".xmgR-hero-sub")),
+    musicEmbeds: [],
+    spotifyInput: "",
+    soundcloudInput: ""
+  };
+
+  const flyerImage = documentFragment.querySelector(".xmgR-flyer-frame:not(.xmgR-flyer-empty) img");
+  if (flyerImage) details.flyerUrl = flyerImage.getAttribute("src") || "";
+
+  const ticketBlock = documentFragment.querySelector(".xmgR-ticket-panel .xmgR-ticket-block")
+    || documentFragment.querySelector(".xmgR-ticket-block");
+  const ticketEmbed = ticketBlock?.querySelector(".xmgR-ticket-embed");
+  const ticketButton = ticketBlock?.querySelector(".xmgR-ticket-btn");
+  if (ticketEmbed) {
+    details.ticketMode = "embed";
+    details.ticketEmbed = ticketEmbed.innerHTML.trim();
+  } else if (ticketButton) {
+    details.ticketMode = "button";
+    details.ticketUrl = ticketButton.getAttribute("href") || "";
+    details.ticketBtnText = ticketButton.textContent.replace(/\s+/g, " ").trim() || "Get Tickets";
+  }
+
+  const musicItems = Array.from(documentFragment.querySelectorAll(".xmgR-music-grid > *"));
+  musicItems.slice(0, 2).forEach((item, index) => {
+    const link = item.querySelector("a.xmg-linkbtn");
+    const value = link ? (link.getAttribute("href") || "") : item.innerHTML.trim();
+    const searchable = value.toLowerCase();
+    const declaredType = item.getAttribute("data-music-type");
+    const type = declaredType === "soundcloud" || declaredType === "spotify"
+      ? declaredType
+      : (searchable.includes("soundcloud") ? "soundcloud" : (searchable.includes("spotify") ? "spotify" : (index === 1 ? "soundcloud" : "spotify")));
+    details.musicEmbeds.push({ type, value });
+  });
+  while (details.musicEmbeds.length < 2) {
+    details.musicEmbeds.push({ type: details.musicEmbeds.length === 1 ? "soundcloud" : "spotify", value: "" });
+  }
+  details.spotifyInput = details.musicEmbeds.find((item) => item.type === "spotify")?.value || "";
+  details.soundcloudInput = details.musicEmbeds.find((item) => item.type === "soundcloud")?.value || "";
+
+  return details;
+}
+
+function formatSavedPageOption(page) {
+  const name = page?.details?.eventName?.trim() || page?.name || "Untitled Event";
+  const dateValue = page?.details?.eventDate || "";
+  if (!dateValue) return name;
+  const date = new Date(`${dateValue}:00`);
+  if (Number.isNaN(date.getTime())) return name;
+  return `${name} — ${date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
+function renderSavedEventPages(selectedId = currentSavedEventPageId) {
+  const options = ['<option value="">Select a saved page...</option>'];
+  savedEventPages.forEach((page) => {
+    options.push(`<option value="${escapeHtml(page.id)}">${escapeHtml(formatSavedPageOption(page))}</option>`);
+  });
+  savedEventPagesSelect.innerHTML = options.join("");
+  savedEventPagesSelect.value = selectedId || "";
+  loadSavedEventButton.disabled = !selectedId;
+  savedPagesHint.textContent = savedEventPages.length
+    ? `${savedEventPages.length} saved page${savedEventPages.length === 1 ? "" : "s"} available on the server.`
+    : "No saved event pages are on the server yet.";
+}
+
+async function loadSavedEventPages(selectedId = currentSavedEventPageId) {
+  loadSavedEventButton.disabled = true;
+  try {
+    const response = await fetch("/api/event-pages", { headers: { Accept: "application/json" } });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Saved pages could not be loaded.");
+    savedEventPages = Array.isArray(result.pages) ? result.pages : [];
+    savedPagesLoaded = true;
+    renderSavedEventPages(selectedId);
+  } catch (error) {
+    console.error("Saved event pages could not be loaded.", error);
+    savedPagesHint.textContent = "Saved pages are unavailable from the server.";
+    loadSavedEventButton.disabled = true;
+  }
+}
+
+async function saveCurrentEventPage() {
+  const details = collectEventDetails();
+  if (!details.eventName) {
+    codeStatus.textContent = "Enter an event name before saving the page.";
+    $("eventName").focus();
+    return;
+  }
+
+  const originalText = saveEventPageButton.textContent;
+  saveEventPageButton.disabled = true;
+  saveEventPageButton.textContent = "Saving...";
+  try {
+    const response = await fetch("/api/event-pages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: currentSavedEventPageId || undefined, details })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "The event page details could not be saved.");
+
+    currentSavedEventPageId = result.page.id;
+    await loadSavedEventPages(currentSavedEventPageId);
+    codeStatus.textContent = `Saved “${result.page.name}” to the server.`;
+    saveEventPageButton.textContent = "Saved";
+    saveEventPageButton.classList.add("saved");
+    window.setTimeout(() => {
+      saveEventPageButton.textContent = "Save Page";
+      saveEventPageButton.classList.remove("saved");
+    }, 1400);
+  } catch (error) {
+    console.error("The event page details could not be saved.", error);
+    codeStatus.textContent = error.message;
+    saveEventPageButton.textContent = originalText;
+  } finally {
+    saveEventPageButton.disabled = false;
+  }
+}
+
+function loadSelectedEventPage() {
+  const selectedId = savedEventPagesSelect.value;
+  const page = savedEventPages.find((item) => item.id === selectedId);
+  if (!page) {
+    codeStatus.textContent = "Select a saved event page to load.";
+    return;
+  }
+  applyEventDetails(page.details, page.id);
+  codeStatus.textContent = `Loaded “${page.name || page.details.eventName || "Untitled Event"}”.`;
+}
+
+function importPastedEventCode() {
+  const pastedCode = importEventCodeInput.value.trim();
+  if (!pastedCode) {
+    codeStatus.textContent = "Paste previously generated event page code first.";
+    importEventCodeInput.focus();
+    return;
+  }
+
+  try {
+    const details = parseGeneratedEventCode(pastedCode);
+    applyEventDetails(details, "");
+    importEventCodeInput.value = "";
+    codeStatus.textContent = "Imported the page details and regenerated the preview.";
+  } catch (error) {
+    console.error("The pasted event page code could not be imported.", error);
+    codeStatus.textContent = error.message;
+  }
+}
+
+function updateEventCodePreview() {
+  generateEventCode();
+}
+
+function generateEventCode() {
+  const eventDateVal = $("eventDate").value;
+  const eventTz = $("eventTz").value;
+
+  const details = collectEventDetails();
+  generatedCode = generateSnippet({
+    eventName: details.eventName || "EVENT NAME",
+    venueName: details.venueName || "VENUE NAME",
+    venueAddress: details.venueAddress || "VENUE ADDRESS",
+    eventISO: zonedLocalToUtcIso(eventDateVal, eventTz),
+    eventDateVal,
+    tzLabel: tzLabelFromIana(eventTz),
+    flyerUrlTrimmed: details.flyerUrl,
+    ticketMode: details.ticketMode,
+    ticketUrl: details.ticketUrl,
+    ticketEmbed: details.ticketEmbed,
+    ticketBtnText: details.ticketBtnText,
+    eventDescription: details.eventDescription || "EVENT DESCRIPTION",
+    musicEmbeds: details.musicEmbeds,
+    spotifyInput: details.spotifyInput,
+    soundcloudInput: details.soundcloudInput
+  });
+
+  codeStatus.textContent = "";
+  if (!$("codeBlockMode").hidden) renderPreview(generatedCode);
+}
+
+function clearEventCodeForm() {
+  [
+    "eventName", "venueNameCustom", "venueAddress", "eventDate", "flyerUrl", "ticketUrl",
+    "ticketEmbed", "eventDescription", "musicInput1", "musicInput2", "ticketBtnText"
+  ].forEach((id) => { $(id).value = ""; });
+
+  $("venueName").value = "";
+  $("venueNameCustom").hidden = true;
+  $("eventTz").value = "America/New_York";
+  $("ticketMode").value = "button";
+  $("ticketBtnText").value = "Get Tickets";
+  $("musicType1").value = "spotify";
+  $("musicType2").value = "soundcloud";
+  currentSavedEventPageId = "";
+  savedEventPagesSelect.value = "";
+  importEventCodeInput.value = "";
+  updateTimezoneLabel();
+  updateTicketModeUI();
+  generateEventCode();
+}
+
+async function copyEventCode() {
+  if (!generatedCode.trim()) {
+    copyButton.textContent = "Generate First";
+    window.setTimeout(() => { copyButton.textContent = "Copy Code"; }, 1600);
+    return;
+  }
+
+  try {
+    await navigator.clipboard.writeText(generatedCode);
+  } catch {
+    const fallback = document.createElement("textarea");
+    fallback.value = generatedCode;
+    fallback.setAttribute("readonly", "");
+    fallback.style.position = "fixed";
+    fallback.style.opacity = "0";
+    document.body.appendChild(fallback);
+    fallback.select();
+    document.execCommand("copy");
+    fallback.remove();
+  }
+
+  copyButton.textContent = "COPIED";
+  copyButton.classList.add("copied");
+  window.setTimeout(() => {
+    copyButton.textContent = "Copy Code";
+    copyButton.classList.remove("copied");
+  }, 1400);
+}
+
+const LAST_VENUE_STORAGE_KEY = "xmg-event-page-generator-last-venue-v1";
+const defaultVenueData = {
+  "Skully's Music Diner": "1151 N High St, Columbus, OH 43201",
+  "The Cave Bar and Lounge": "122 E Main St, Columbus, OH 43215"
+};
+let lastVenue = loadLastVenue();
+const venueData = { ...defaultVenueData };
+
+function loadLastVenue() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAST_VENUE_STORAGE_KEY) || "null");
+    if (saved && typeof saved.name === "string" && saved.name.trim()) {
+      return { name: saved.name.trim(), address: String(saved.address || "").trim() };
+    }
+  } catch (error) {
+    console.warn("The last venue could not be loaded.", error);
+  }
+  return { name: "", address: "" };
+}
+
+function refreshRememberedVenueOption(selectedValue = $("venueName").value) {
+  const select = $("venueName");
+  select.querySelectorAll("option[data-remembered-venue]").forEach((option) => option.remove());
+  Object.keys(venueData).forEach((name) => {
+    if (!Object.hasOwn(defaultVenueData, name)) delete venueData[name];
+  });
+
+  if (lastVenue.name && !Object.hasOwn(defaultVenueData, lastVenue.name)) {
+    venueData[lastVenue.name] = lastVenue.address;
+    const option = document.createElement("option");
+    option.value = lastVenue.name;
+    option.textContent = `${lastVenue.name} (Last Used)`;
+    option.dataset.rememberedVenue = "true";
+    const customOption = Array.from(select.options).find((item) => item.value === "custom");
+    select.insertBefore(option, customOption || null);
+  }
+
+  if (Array.from(select.options).some((option) => option.value === selectedValue)) {
+    select.value = selectedValue;
+  }
+}
+
+function rememberVenue(name, address) {
+  const cleanName = String(name || "").trim();
+  if (!cleanName || Object.hasOwn(defaultVenueData, cleanName)) return;
+  lastVenue = { name: cleanName, address: String(address || "").trim() };
+  try {
+    localStorage.setItem(LAST_VENUE_STORAGE_KEY, JSON.stringify(lastVenue));
+  } catch (error) {
+    console.warn("The last venue could not be saved.", error);
+  }
+  refreshRememberedVenueOption($("venueName").value);
+}
+
+function rememberCurrentCustomVenue() {
+  if ($("venueName").value !== "custom") return;
+  rememberVenue($("venueNameCustom").value, $("venueAddress").value);
+}
+
+refreshRememberedVenueOption();
+
+$("venueName").addEventListener("change", () => {
+  const selectedVenue = $("venueName").value;
+  const customInput = $("venueNameCustom");
+  customInput.hidden = selectedVenue !== "custom";
+
+  if (selectedVenue === "custom") {
+    if (!customInput.value && lastVenue.name) customInput.value = lastVenue.name;
+    $("venueAddress").value = lastVenue.address || "";
+  } else {
+    customInput.value = "";
+    $("venueAddress").value = venueData[selectedVenue] || "";
+  }
+  updateEventCodePreview();
+});
+
+$("ticketMode").addEventListener("change", () => {
+  updateTicketModeUI();
+  updateEventCodePreview();
+});
+
+$("eventTz").addEventListener("change", () => {
+  updateTimezoneLabel();
+  updateEventCodePreview();
+});
+
+[
+  "eventName", "venueNameCustom", "venueAddress", "eventDate", "flyerUrl", "ticketUrl",
+  "ticketEmbed", "ticketBtnText", "eventDescription", "musicInput1", "musicInput2"
+].forEach((id) => {
+  $(id).addEventListener("input", updateEventCodePreview);
+  $(id).addEventListener("change", updateEventCodePreview);
+});
+
+["venueNameCustom", "venueAddress"].forEach((id) => {
+  $(id).addEventListener("change", rememberCurrentCustomVenue);
+  $(id).addEventListener("blur", rememberCurrentCustomVenue);
+});
+
+["musicType1", "musicType2"].forEach((id) => {
+  $(id).addEventListener("change", updateEventCodePreview);
+});
+
+clearButton.addEventListener("click", clearEventCodeForm);
+copyButton.addEventListener("click", copyEventCode);
+saveEventPageButton.addEventListener("click", saveCurrentEventPage);
+loadSavedEventButton.addEventListener("click", loadSelectedEventPage);
+savedEventPagesSelect.addEventListener("change", () => {
+  loadSavedEventButton.disabled = !savedEventPagesSelect.value;
+});
+importEventCodeButton.addEventListener("click", importPastedEventCode);
+importEventCodeInput.addEventListener("paste", () => {
+  window.setTimeout(importPastedEventCode, 0);
+});
+
+updateTicketModeUI();
+updateTimezoneLabel();
+
+generateEventCode();
+void loadSavedEventPages();
+
+export function activateEventCodeBlock() {
+  if (!savedPagesLoaded) void loadSavedEventPages();
+  generateEventCode();
+  renderPreview(generatedCode, { force: true });
+}
+
+export function getEventCodeBlockCode() {
+  return generatedCode;
+}
