@@ -12,23 +12,32 @@ const REFERENCE_EVENTS = [
     venue: "Skully's Music Diner",
     description: "XODIA Media Group's open decks night!",
     date: "2026-08-01",
-    flyer: "https://images.squarespace-cdn.com/content/v1/681ea18dd168a935c26295bd/e468c405-d0c2-4cfc-a269-71c257f0bab9/Square.jpg?format=500w"
+    flyer: "https://images.squarespace-cdn.com/content/v1/681ea18dd168a935c26295bd/e468c405-d0c2-4cfc-a269-71c257f0bab9/Square.jpg?format=500w",
+    url: "/opendecks"
   },
   {
     title: "SPACE CAMP: STVSH w/ BROWNEE",
     venue: "Skully's Music Diner",
     description: "Get ready to groove to all your favorite hits from the 2000s!",
     date: "2026-08-28",
-    flyer: "https://images.squarespace-cdn.com/content/v1/681ea18dd168a935c26295bd/ea6c3dbf-6f7b-489b-8d62-b1ef598777d9/STVSH+2026+%5Bsquare%5D.jpg?format=500w"
+    flyer: "https://images.squarespace-cdn.com/content/v1/681ea18dd168a935c26295bd/ea6c3dbf-6f7b-489b-8d62-b1ef598777d9/STVSH+2026+%5Bsquare%5D.jpg?format=500w",
+    url: "/stvsh"
   },
   {
     title: "SPACE CAMP: FREAKY",
     venue: "Skully's Music Diner",
     description: "FREAKY returns to Columbus with his RESURRECTION Tour on October 3rd!",
     date: "2026-10-03",
-    flyer: "https://images.squarespace-cdn.com/content/v1/681ea18dd168a935c26295bd/12bcf334-737c-4772-b93f-3757852c6ca4/Freaky+-++Res+Tour+Admat+SQUARE.jpg?format=500w"
+    flyer: "https://images.squarespace-cdn.com/content/v1/681ea18dd168a935c26295bd/12bcf334-737c-4772-b93f-3757852c6ca4/Freaky+-++Res+Tour+Admat+SQUARE.jpg?format=500w",
+    url: "/freaky"
   }
 ];
+
+const LEGACY_EVENT_URLS = {
+  "Open Decks": "/opendecks",
+  "SPACE CAMP: STVSH w/ BROWNEE": "/stvsh",
+  "SPACE CAMP: FREAKY": "/freaky"
+};
 
 const eventCountInput = document.getElementById("eventCount");
 const eventEditors = document.getElementById("eventEditors");
@@ -47,7 +56,8 @@ function cloneEvent(event = {}) {
     venue: String(event.venue || ""),
     description: String(event.description || ""),
     date: String(event.date || ""),
-    flyer: String(event.flyer || "")
+    flyer: String(event.flyer || ""),
+    url: String(event.url || event.href || LEGACY_EVENT_URLS[String(event.title || "")] || "")
   };
 }
 
@@ -113,6 +123,13 @@ function isValidHttpUrl(value) {
   }
 }
 
+function isValidEventHref(value) {
+  const href = String(value || "").trim();
+  if (!href) return false;
+  if (href.startsWith("/") || href.startsWith("#")) return true;
+  return isValidHttpUrl(href);
+}
+
 function eventIsComplete(event) {
   return Boolean(
     event.title.trim() &&
@@ -120,7 +137,9 @@ function eventIsComplete(event) {
     event.description.trim() &&
     event.date &&
     event.flyer.trim() &&
-    isValidHttpUrl(event.flyer.trim())
+    isValidHttpUrl(event.flyer.trim()) &&
+    event.url.trim() &&
+    isValidEventHref(event.url.trim())
   );
 }
 
@@ -164,13 +183,7 @@ function editorMarkup(event, index) {
       <div class="field-group">
         <label for="event-date-${index}">Date</label>
         <div class="date-input-wrap">
-          <input id="event-date-${index}" data-field="date" type="date" value="${escapeHtml(event.date)}" />
-          <button class="calendar-button" type="button" data-calendar-for="event-date-${index}" aria-label="Open calendar for Event ${index + 1}">
-            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <rect x="3.5" y="5.5" width="17" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"></rect>
-              <path d="M7.5 3.5v4M16.5 3.5v4M3.5 9.5h17" fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="1.8"></path>
-            </svg>
-          </button>
+          <input id="event-date-${index}" data-field="date" type="date" value="${escapeHtml(event.date)}" aria-label="Event ${index + 1} date" />
         </div>
         <div class="date-preview">${escapeHtml(formattedDate)}</div>
       </div>
@@ -178,6 +191,11 @@ function editorMarkup(event, index) {
       <div class="field-group">
         <label for="event-flyer-${index}">Flyer Link (Square Only)</label>
         <input id="event-flyer-${index}" data-field="flyer" type="url" value="${escapeHtml(event.flyer)}" placeholder="https://.../square-flyer.jpg" />
+      </div>
+
+      <div class="field-group">
+        <label for="event-url-${index}">Event Page URL</label>
+        <input id="event-url-${index}" data-field="url" type="text" inputmode="url" autocomplete="url" value="${escapeHtml(event.url)}" placeholder="/event-page or https://..." />
       </div>
     </section>`;
 }
@@ -233,10 +251,11 @@ function eventCardMarkup(event) {
   const description = escapeHtml(event.description.trim());
   const date = escapeHtml(formatEventDate(event.date));
   const flyer = escapeHtml(event.flyer.trim());
+  const href = escapeHtml(event.url.trim());
   const dateKey = escapeHtml(event.date);
 
   return `
-  <article class="event-card" data-event-date="${dateKey}">
+  <a class="event-card" href="${href}" data-event-date="${dateKey}">
    <div class="event-card-bg"></div>
    <div class="event-flyer">
     <img src="${flyer}" alt="${title} flyer" />
@@ -253,7 +272,7 @@ function eventCardMarkup(event) {
     </div>
    </div>
    <div class="event-card-shine"></div>
-  </article>`;
+  </a>`;
 }
 
 function buildGeneratedPage(validEvents) {
@@ -319,22 +338,6 @@ function refreshGeneratedPageNow() {
   renderPreview(generatedCode, { force: true });
   updateStatus(validEvents);
   return validEvents;
-}
-
-function openCalendar(button) {
-  const input = document.getElementById(button.dataset.calendarFor);
-  if (!input) return;
-
-  input.focus({ preventScroll: true });
-  if (typeof input.showPicker === "function") {
-    try {
-      input.showPicker();
-      return;
-    } catch (error) {
-      console.warn("The browser could not open the date picker directly.", error);
-    }
-  }
-  input.click();
 }
 
 async function saveGeneratedPage() {
@@ -404,10 +407,6 @@ async function copyGeneratedCode() {
 eventCountInput.addEventListener("change", () => resizeEventList(eventCountInput.value));
 eventEditors.addEventListener("input", handleEditorInput);
 eventEditors.addEventListener("change", handleEditorInput);
-eventEditors.addEventListener("click", (event) => {
-  const calendarButton = event.target.closest(".calendar-button");
-  if (calendarButton) openCalendar(calendarButton);
-});
 copyCodeButton.addEventListener("click", copyGeneratedCode);
 savePageButton.addEventListener("click", saveGeneratedPage);
 
