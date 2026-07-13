@@ -12,6 +12,9 @@ const loadSavedEventButton = $("loadSavedEventButton");
 const savedPagesHint = $("savedPagesHint");
 const importEventCodeInput = $("importEventCode");
 const importEventCodeButton = $("importEventCodeButton");
+const addMusicEmbedButton = $("addMusicEmbedButton");
+const removeMusicEmbedButton = $("removeMusicEmbedButton");
+const musicSlot2 = $("musicSlot2");
 
 let generatedCode = "";
 let savedEventPages = [];
@@ -113,20 +116,18 @@ function normalizeMusicEmbeds(data) {
   const validType = (type, fallback) => type === "soundcloud" ? "soundcloud" : (type === "spotify" ? "spotify" : fallback);
   const supplied = Array.isArray(data?.musicEmbeds) ? data.musicEmbeds.slice(0, 2) : [];
   if (supplied.length) {
-    const normalized = supplied.map((item, index) => ({
+    return supplied.map((item, index) => ({
       type: validType(item?.type, index === 1 ? "soundcloud" : "spotify"),
       value: String(item?.value || "")
     }));
-    while (normalized.length < 2) {
-      normalized.push({ type: normalized.length === 1 ? "soundcloud" : "spotify", value: "" });
-    }
-    return normalized;
   }
 
-  return [
+  const legacy = [
     { type: "spotify", value: String(data?.spotifyInput || "") },
     { type: "soundcloud", value: String(data?.soundcloudInput || "") }
-  ];
+  ].filter((item) => item.value.trim());
+
+  return legacy.length ? legacy : [{ type: "spotify", value: "" }];
 }
 
 function formatEventDateLocal(localStr) {
@@ -198,8 +199,8 @@ function generateSnippet(data) {
         ? `<div class="xmgR-embed-frame" data-music-type="${type}" data-music-slot="${slot}">${html}</div>`
         : `<div class="xmgR-link-wrap" data-music-type="${type}" data-music-slot="${slot}">${html}</div>`;
     })
-    .filter(Boolean)
-    .join('\n');
+    .filter(Boolean);
+  const musicGridClass = musicBlocks.length === 1 ? " xmgR-music-grid-single" : "";
 
   const updatesCard = `<a href="https://www.xodiamediagroup.com/updates" target="_blank" rel="noopener noreferrer" class="xmgR-promo-card xmgR-updates-card">
 <div class="xmgR-promo-tag">// Updates</div>
@@ -208,9 +209,9 @@ function generateSnippet(data) {
 <span class="xmgR-promo-arrow">Sign Up →</span>
 </a>`;
 
-  const musicSection = musicBlocks ? `<div class="xmgR-music-section">
+  const musicSection = musicBlocks.length ? `<div class="xmgR-music-section">
 <div class="xmgR-section-header"><div class="xmgR-section-tag">// Music</div><h2 class="xmgR-section-h2">Listen Now</h2></div>
-<div class="xmgR-music-grid">${musicBlocks}</div>
+<div class="xmgR-music-grid${musicGridClass}">${musicBlocks.join("\n")}</div>
 </div>` : '';
 
   return `<!DOCTYPE html>
@@ -291,6 +292,7 @@ body::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backgr
 .xmgR-section-header{margin-bottom:28px;text-align:center}
 .xmgR-section-h2{font-family:'Bebas Neue',sans-serif;font-size:48px;letter-spacing:0.06em;color:#ffffff}
 .xmgR-music-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:24px;align-items:start;max-width:1100px;margin:0 auto}
+.xmgR-music-grid-single{grid-template-columns:minmax(0,760px);justify-content:center;max-width:760px}
 .xmgR-embed-frame{width:100%;border-radius:14px;overflow:hidden;border:1px solid var(--border);background:#111}
 .xmgR-embed-frame iframe{display:block;width:100%;border:none;min-height:352px}
 .xmg-linkbtn{display:inline-flex;align-items:center;justify-content:center;text-decoration:none;background:var(--cold-dim);color:var(--cold);padding:12px 20px;border-radius:10px;font-weight:700;border:1px solid var(--cold);letter-spacing:0.06em}
@@ -629,6 +631,30 @@ function updateTimezoneLabel() {
   $("tzDisplay").textContent = tzLabelFromIana($("eventTz").value);
 }
 
+function defaultEventDateTimeValue() {
+  const values = {};
+  new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(new Date()).forEach((part) => {
+    if (part.type !== "literal") values[part.type] = part.value;
+  });
+  return `${values.year}-${values.month}-${values.day}T20:00`;
+}
+
+function setMusicSlotCount(count, { clearSecond = false } = {}) {
+  const showSecond = Number(count) >= 2;
+  musicSlot2.hidden = !showSecond;
+  addMusicEmbedButton.hidden = showSecond;
+
+  if (!showSecond && clearSecond) {
+    $("musicType2").value = "soundcloud";
+    $("musicInput2").value = "";
+  }
+}
+
 function selectedVenueName() {
   return $("venueName").value === "custom"
     ? $("venueNameCustom").value.trim()
@@ -636,7 +662,8 @@ function selectedVenueName() {
 }
 
 function collectEventDetails() {
-  const musicEmbeds = [1, 2].map((slot) => ({
+  const musicSlots = musicSlot2.hidden ? [1] : [1, 2];
+  const musicEmbeds = musicSlots.map((slot) => ({
     type: $(`musicType${slot}`).value === "soundcloud" ? "soundcloud" : "spotify",
     value: $(`musicInput${slot}`).value
   }));
@@ -685,7 +712,7 @@ function applyEventDetails(details, savedPageId = "") {
   $("eventName").value = String(next.eventName || "");
   setVenueFromName(next.venueName);
   $("venueAddress").value = String(next.venueAddress || "");
-  $("eventDate").value = String(next.eventDate || "");
+  $("eventDate").value = String(next.eventDate || defaultEventDateTimeValue());
   $("eventTz").value = [
     "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles", "UTC"
   ].includes(next.eventTz) ? next.eventTz : "America/New_York";
@@ -696,11 +723,13 @@ function applyEventDetails(details, savedPageId = "") {
   $("ticketBtnText").value = String(next.ticketBtnText || "Get Tickets");
   $("eventDescription").value = String(next.eventDescription || "");
   const musicEmbeds = normalizeMusicEmbeds(next);
-  musicEmbeds.forEach((item, index) => {
-    const slot = index + 1;
-    $(`musicType${slot}`).value = item.type;
-    $(`musicInput${slot}`).value = item.value;
-  });
+  const firstMusic = musicEmbeds[0] || { type: "spotify", value: "" };
+  const secondMusic = musicEmbeds[1] || { type: "soundcloud", value: "" };
+  $("musicType1").value = firstMusic.type;
+  $("musicInput1").value = firstMusic.value;
+  $("musicType2").value = secondMusic.type;
+  $("musicInput2").value = secondMusic.value;
+  setMusicSlotCount(secondMusic.value.trim() ? 2 : 1);
   rememberVenue(next.venueName, next.venueAddress);
 
   currentSavedEventPageId = savedPageId;
@@ -802,9 +831,6 @@ function parseGeneratedEventCode(code) {
       : (searchable.includes("soundcloud") ? "soundcloud" : (searchable.includes("spotify") ? "spotify" : (index === 1 ? "soundcloud" : "spotify")));
     details.musicEmbeds.push({ type, value });
   });
-  while (details.musicEmbeds.length < 2) {
-    details.musicEmbeds.push({ type: details.musicEmbeds.length === 1 ? "soundcloud" : "spotify", value: "" });
-  }
   details.spotifyInput = details.musicEmbeds.find((item) => item.type === "spotify")?.value || "";
   details.soundcloudInput = details.musicEmbeds.find((item) => item.type === "soundcloud")?.value || "";
 
@@ -950,9 +976,10 @@ function generateEventCode() {
 
 function clearEventCodeForm() {
   [
-    "eventName", "venueNameCustom", "venueAddress", "eventDate", "flyerUrl", "ticketUrl",
+    "eventName", "venueNameCustom", "venueAddress", "flyerUrl", "ticketUrl",
     "ticketEmbed", "eventDescription", "musicInput1", "musicInput2", "ticketBtnText"
   ].forEach((id) => { $(id).value = ""; });
+  $("eventDate").value = defaultEventDateTimeValue();
 
   $("venueName").value = "";
   $("venueNameCustom").hidden = true;
@@ -961,6 +988,7 @@ function clearEventCodeForm() {
   $("ticketBtnText").value = "Get Tickets";
   $("musicType1").value = "spotify";
   $("musicType2").value = "soundcloud";
+  setMusicSlotCount(1, { clearSecond: true });
   currentSavedEventPageId = "";
   savedEventPagesSelect.value = "";
   importEventCodeInput.value = "";
@@ -1101,6 +1129,17 @@ $("eventTz").addEventListener("change", () => {
   $(id).addEventListener("change", updateEventCodePreview);
 });
 
+addMusicEmbedButton.addEventListener("click", () => {
+  setMusicSlotCount(2);
+  $("musicType2").focus();
+  updateEventCodePreview();
+});
+
+removeMusicEmbedButton.addEventListener("click", () => {
+  setMusicSlotCount(1, { clearSecond: true });
+  updateEventCodePreview();
+});
+
 clearButton.addEventListener("click", clearEventCodeForm);
 copyButton.addEventListener("click", copyEventCode);
 saveEventPageButton.addEventListener("click", saveCurrentEventPage);
@@ -1115,6 +1154,8 @@ importEventCodeInput.addEventListener("paste", () => {
 
 updateTicketModeUI();
 updateTimezoneLabel();
+if (!$("eventDate").value) $("eventDate").value = defaultEventDateTimeValue();
+setMusicSlotCount(1);
 
 generateEventCode();
 void loadSavedEventPages();

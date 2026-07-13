@@ -78,15 +78,17 @@
           <p id="savedPagesHint" class="field-hint">Save page details to the server, then load them later to regenerate the page.</p>
         </section>
 
-        <section class="generator-section">
-          <div class="section-title">Import Generated Code</div>
-          <div class="field-group">
-            <label for="importEventCode">Paste Previously Generated Code</label>
-            <textarea id="importEventCode" class="code-import-input" placeholder="Paste a previously generated event page code block here..."></textarea>
-            <p class="field-hint">Pasted code is read into the editable fields and regenerated in the viewport.</p>
+        <details class="generator-section collapsible-generator-section">
+          <summary class="section-title collapsible-section-title">Import Generated Code</summary>
+          <div class="collapsible-section-content">
+            <div class="field-group">
+              <label for="importEventCode">Paste Previously Generated Code</label>
+              <textarea id="importEventCode" class="code-import-input" placeholder="Paste a previously generated event page code block here..."></textarea>
+              <p class="field-hint">Pasted code is read into the editable fields and regenerated in the viewport.</p>
+            </div>
+            <button id="importEventCodeButton" class="sidebar-action-button full-width-action" type="button">Import Code</button>
           </div>
-          <button id="importEventCodeButton" class="sidebar-action-button full-width-action" type="button">Import Code</button>
-        </section>
+        </details>
 
         <section class="generator-section">
           <div class="section-title">Event Info</div>
@@ -180,10 +182,13 @@
         </section>
 
         <section class="generator-section">
-          <div class="section-title">Music Embeds</div>
-          <p class="section-copy">Choose Spotify or SoundCloud independently for each slot. Both embeds display side by side on the generated page.</p>
+          <div class="section-title-row">
+            <div class="section-title">Music Embeds</div>
+            <button id="addMusicEmbedButton" class="music-slot-add" type="button" aria-label="Add another music embed" title="Add another music embed">+</button>
+          </div>
+          <p class="section-copy">Add up to two Spotify or SoundCloud embeds.</p>
 
-          <div class="music-slot">
+          <div id="musicSlot1" class="music-slot">
             <div class="field-group">
               <label for="musicType1">Music Embed 1 Platform</label>
               <select id="musicType1">
@@ -197,9 +202,13 @@
             </div>
           </div>
 
-          <div class="music-slot">
+          <div id="musicSlot2" class="music-slot" hidden>
+            <div class="music-slot-toolbar">
+              <span>Music Embed 2</span>
+              <button id="removeMusicEmbedButton" class="music-slot-remove" type="button" aria-label="Remove second music embed" title="Remove second music embed">&times;</button>
+            </div>
             <div class="field-group">
-              <label for="musicType2">Music Embed 2 Platform</label>
+              <label for="musicType2">Platform</label>
               <select id="musicType2">
                 <option value="spotify">Spotify</option>
                 <option value="soundcloud" selected>SoundCloud</option>

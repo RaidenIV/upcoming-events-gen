@@ -125,3 +125,107 @@
   font-size: 11px;
   line-height: 1.45;
 }
+
+/* Collapsible generated-code import */
+.collapsible-generator-section > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.collapsible-generator-section > summary::-webkit-details-marker { display: none; }
+
+.collapsible-section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+.collapsible-section-title::after {
+  content: "+";
+  flex: 0 0 auto;
+  color: var(--accent);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.collapsible-generator-section[open] .collapsible-section-title {
+  margin-bottom: 10px;
+}
+
+.collapsible-generator-section[open] .collapsible-section-title::after {
+  content: "−";
+}
+
+.collapsible-section-content { min-width: 0; }
+
+/* Dynamic music embed slots */
+.section-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-title-row .section-title { margin-bottom: 0; }
+
+.music-slot-add,
+.music-slot-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border: 1px solid var(--line-strong);
+  background: var(--field);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+
+.music-slot-add {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: 8px;
+  color: var(--accent);
+  font-size: 21px;
+  line-height: 1;
+}
+
+.music-slot-remove {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 7px;
+  color: var(--muted);
+  font-size: 19px;
+  line-height: 1;
+}
+
+.music-slot-add:hover,
+.music-slot-add:focus-visible,
+.music-slot-remove:hover,
+.music-slot-remove:focus-visible {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: #ffffff;
+  outline: none;
+}
+
+.music-slot-add[hidden] { display: none !important; }
+
+.music-slot-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
