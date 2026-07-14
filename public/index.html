@@ -66,6 +66,15 @@
         </div>
       </details>
 
+      <section class="upcoming-card-size-control" aria-labelledby="card-size-label">
+        <div class="card-size-control-header">
+          <label id="card-size-label" for="cardSizeControl">Card Size</label>
+          <output id="cardSizeValue" for="cardSizeControl">100%</output>
+        </div>
+        <input id="cardSizeControl" class="card-size-range" type="range" min="60" max="140" step="5" value="100" />
+        <p class="field-hint">Adjusts the size of every card on the generated page.</p>
+      </section>
+
       <div id="eventEditors" class="event-editors" aria-live="polite"></div>
 
       <footer class="sidebar-footer">
