@@ -21,6 +21,79 @@ let savedEventPages = [];
 let currentSavedEventPageId = "";
 let savedPagesLoaded = false;
 
+
+const SAVED_EVENT_PAGES_STORAGE_KEY = "xmg-event-page-generator-saved-pages-v2";
+
+function normalizeSavedEventPageRecord(page) {
+  if (!page || typeof page !== "object" || !page.details || typeof page.details !== "object") return null;
+  const id = typeof page.id === "string" && page.id.trim() ? page.id.trim() : "";
+  if (!id) return null;
+  const eventName = String(page.details.eventName || page.name || "Untitled Event").trim() || "Untitled Event";
+  return {
+    id,
+    name: String(page.name || eventName),
+    createdAt: String(page.createdAt || page.updatedAt || ""),
+    updatedAt: String(page.updatedAt || page.createdAt || ""),
+    details: page.details
+  };
+}
+
+function loadLocalSavedEventPages() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SAVED_EVENT_PAGES_STORAGE_KEY) || '{"pages":[]}');
+    const pages = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.pages) ? parsed.pages : []);
+    return pages.map(normalizeSavedEventPageRecord).filter(Boolean);
+  } catch (error) {
+    console.warn("Locally saved event pages could not be read.", error);
+    return [];
+  }
+}
+
+function persistLocalSavedEventPages(pages) {
+  try {
+    const normalized = pages
+      .map(normalizeSavedEventPageRecord)
+      .filter(Boolean)
+      .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))
+      .slice(0, 100);
+    localStorage.setItem(SAVED_EVENT_PAGES_STORAGE_KEY, JSON.stringify({ pages: normalized }));
+  } catch (error) {
+    console.warn("Saved event pages could not be mirrored in this browser.", error);
+  }
+}
+
+function mergeSavedEventPageLists(...lists) {
+  const byId = new Map();
+  lists.flat().forEach((candidate) => {
+    const page = normalizeSavedEventPageRecord(candidate);
+    if (!page) return;
+    const existing = byId.get(page.id);
+    if (!existing || String(page.updatedAt || "") >= String(existing.updatedAt || "")) {
+      byId.set(page.id, page);
+    }
+  });
+  return Array.from(byId.values())
+    .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))
+    .slice(0, 100);
+}
+
+function createLocalSavedEventPage(details, requestedId = "") {
+  const localPages = loadLocalSavedEventPages();
+  const now = new Date().toISOString();
+  const existing = requestedId ? localPages.find((page) => page.id === requestedId) : null;
+  const id = existing?.id || requestedId || `local-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  const page = {
+    id,
+    name: String(details.eventName || "Untitled Event").trim() || "Untitled Event",
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+    details
+  };
+  persistLocalSavedEventPages(mergeSavedEventPageLists([page], localPages));
+  return page;
+}
+
+
 function escapeHtml(s) {
   return String(s)
     .replaceAll("&", "&amp;")
@@ -382,7 +455,7 @@ body::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backgr
   <a href="https://www.xodiamediagroup.com/" target="_top" rel="noopener">Home</a>
   <a href="https://www.xodiamediagroup.com/upcoming-events" target="_top" rel="noopener">Upcoming Events</a>
   <a href="https://www.xodiamediagroup.com/contact" target="_top" rel="noopener">Contact Us</a>
-  <a href="https://www.xodiamediagroup.com/tools" target="_top" rel="noopener">Tools</a>
+  <a href="https://tools-dashboard-production-1c7c.up.railway.app/" target="_top" rel="noopener">Tools</a>
 </div>
 </div>
 <div class="xmgR-page" data-event-iso="${escapeHtml(eventISO)}" data-tz-label="${tzLabel}">
@@ -861,17 +934,31 @@ function renderSavedEventPages(selectedId = currentSavedEventPageId) {
 
 async function loadSavedEventPages(selectedId = currentSavedEventPageId) {
   loadSavedEventButton.disabled = true;
+
+  const localPages = loadLocalSavedEventPages();
+  savedEventPages = localPages;
+  savedPagesLoaded = true;
+  renderSavedEventPages(selectedId);
+
   try {
-    const response = await fetch("/api/event-pages", { headers: { Accept: "application/json" } });
+    const response = await fetch("/api/event-pages", {
+      headers: { Accept: "application/json" },
+      cache: "no-store"
+    });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Saved pages could not be loaded.");
-    savedEventPages = Array.isArray(result.pages) ? result.pages : [];
-    savedPagesLoaded = true;
+
+    const serverPages = Array.isArray(result.pages) ? result.pages : [];
+    savedEventPages = mergeSavedEventPageLists(serverPages, localPages);
+    persistLocalSavedEventPages(savedEventPages);
     renderSavedEventPages(selectedId);
   } catch (error) {
-    console.error("Saved event pages could not be loaded.", error);
-    savedPagesHint.textContent = "Saved pages are unavailable from the server.";
-    loadSavedEventButton.disabled = true;
+    console.error("Saved event pages could not be loaded from the server.", error);
+    savedEventPages = localPages;
+    renderSavedEventPages(selectedId);
+    savedPagesHint.textContent = localPages.length
+      ? `${localPages.length} saved page${localPages.length === 1 ? "" : "s"} available from this browser. Server recall is currently unavailable.`
+      : "Saved pages are unavailable from the server and none are stored in this browser.";
   }
 }
 
@@ -893,9 +980,12 @@ async function saveCurrentEventPage() {
       body: JSON.stringify({ id: currentSavedEventPageId || undefined, details })
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "The event page details could not be saved.");
+    if (!response.ok || !result.page) {
+      throw new Error(result.error || "The event page details could not be saved.");
+    }
 
     currentSavedEventPageId = result.page.id;
+    persistLocalSavedEventPages(mergeSavedEventPageLists([result.page], loadLocalSavedEventPages()));
     await loadSavedEventPages(currentSavedEventPageId);
     codeStatus.textContent = `Saved “${result.page.name}” to the server.`;
     saveEventPageButton.textContent = "Saved";
@@ -905,21 +995,41 @@ async function saveCurrentEventPage() {
       saveEventPageButton.classList.remove("saved");
     }, 1400);
   } catch (error) {
-    console.error("The event page details could not be saved.", error);
-    codeStatus.textContent = error.message;
-    saveEventPageButton.textContent = originalText;
+    console.error("The event page details could not be saved to the server.", error);
+    const localPage = createLocalSavedEventPage(details, currentSavedEventPageId);
+    currentSavedEventPageId = localPage.id;
+    savedEventPages = mergeSavedEventPageLists([localPage], savedEventPages, loadLocalSavedEventPages());
+    renderSavedEventPages(currentSavedEventPageId);
+    codeStatus.textContent = `Saved “${localPage.name}” in this browser. The server is currently unavailable.`;
+    saveEventPageButton.textContent = "Saved Locally";
+    saveEventPageButton.classList.add("saved");
+    window.setTimeout(() => {
+      saveEventPageButton.textContent = originalText;
+      saveEventPageButton.classList.remove("saved");
+    }, 1800);
   } finally {
     saveEventPageButton.disabled = false;
   }
 }
 
-function loadSelectedEventPage() {
+async function loadSelectedEventPage() {
   const selectedId = savedEventPagesSelect.value;
-  const page = savedEventPages.find((item) => item.id === selectedId);
-  if (!page) {
+  if (!selectedId) {
     codeStatus.textContent = "Select a saved event page to load.";
     return;
   }
+
+  let page = savedEventPages.find((item) => item.id === selectedId);
+  if (!page) {
+    await loadSavedEventPages(selectedId);
+    page = savedEventPages.find((item) => item.id === selectedId);
+  }
+
+  if (!page) {
+    codeStatus.textContent = "That saved event page could not be recalled.";
+    return;
+  }
+
   applyEventDetails(page.details, page.id);
   codeStatus.textContent = `Loaded “${page.name || page.details.eventName || "Untitled Event"}”.`;
 }
@@ -1143,9 +1253,12 @@ removeMusicEmbedButton.addEventListener("click", () => {
 clearButton.addEventListener("click", clearEventCodeForm);
 copyButton.addEventListener("click", copyEventCode);
 saveEventPageButton.addEventListener("click", saveCurrentEventPage);
-loadSavedEventButton.addEventListener("click", loadSelectedEventPage);
+loadSavedEventButton.addEventListener("click", () => { void loadSelectedEventPage(); });
 savedEventPagesSelect.addEventListener("change", () => {
   loadSavedEventButton.disabled = !savedEventPagesSelect.value;
+});
+savedEventPagesSelect.addEventListener("focus", () => {
+  void loadSavedEventPages(savedEventPagesSelect.value || currentSavedEventPageId);
 });
 importEventCodeButton.addEventListener("click", importPastedEventCode);
 importEventCodeInput.addEventListener("paste", () => {
@@ -1161,7 +1274,7 @@ generateEventCode();
 void loadSavedEventPages();
 
 export function activateEventCodeBlock() {
-  if (!savedPagesLoaded) void loadSavedEventPages();
+  void loadSavedEventPages(currentSavedEventPageId);
   generateEventCode();
   renderPreview(generatedCode, { force: true });
 }

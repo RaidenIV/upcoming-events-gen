@@ -100,6 +100,21 @@ const SINGLE_EVENT_DETAIL_FIELDS = [
   "soundcloudInput"
 ];
 
+function normalizeSingleEventMusicEmbeds(source) {
+  const supplied = Array.isArray(source.musicEmbeds) ? source.musicEmbeds.slice(0, 2) : [];
+  const normalized = supplied.map((item, index) => ({
+    type: item?.type === "soundcloud" ? "soundcloud" : "spotify",
+    value: String(item?.value || "").slice(0, 250000)
+  }));
+
+  if (normalized.length) return normalized;
+
+  return [
+    { type: "spotify", value: String(source.spotifyInput || "").slice(0, 250000) },
+    { type: "soundcloud", value: String(source.soundcloudInput || "").slice(0, 250000) }
+  ].filter((item) => item.value.trim());
+}
+
 function normalizeSingleEventDetails(input) {
   const source = input && typeof input === "object" && !Array.isArray(input) ? input : {};
   const details = {};
@@ -107,6 +122,13 @@ function normalizeSingleEventDetails(input) {
     const value = typeof source[field] === "string" ? source[field] : "";
     details[field] = value.slice(0, field.includes("Embed") || field.includes("Input") ? 250000 : 10000);
   });
+
+  details.musicEmbeds = normalizeSingleEventMusicEmbeds(source);
+  if (details.musicEmbeds.length) {
+    details.spotifyInput = details.musicEmbeds.find((item) => item.type === "spotify")?.value || "";
+    details.soundcloudInput = details.musicEmbeds.find((item) => item.type === "soundcloud")?.value || "";
+  }
+
   details.ticketMode = details.ticketMode === "embed" ? "embed" : "button";
   details.eventTz = [
     "America/New_York",
