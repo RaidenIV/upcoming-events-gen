@@ -53,6 +53,19 @@
         <p class="field-hint">Only complete events dated today or later are included.</p>
       </section>
 
+      <details class="upcoming-import-panel generator-section collapsible-generator-section">
+        <summary class="section-title collapsible-section-title">Import Generated Code</summary>
+        <div class="collapsible-section-content">
+          <div class="field-group">
+            <label for="importUpcomingCode">Paste Previously Generated Code</label>
+            <textarea id="importUpcomingCode" class="code-import-input" placeholder="Paste a previously generated upcoming events page code block here..."></textarea>
+            <p class="field-hint">Pasted code is converted back into editable event details and regenerated in the viewport.</p>
+          </div>
+          <p id="upcomingImportStatus" class="field-hint upcoming-import-status" role="status" aria-live="polite"></p>
+          <button id="importUpcomingCodeButton" class="sidebar-action-button full-width-action" type="button">Import Code</button>
+        </div>
+      </details>
+
       <div id="eventEditors" class="event-editors" aria-live="polite"></div>
 
       <footer class="sidebar-footer">
