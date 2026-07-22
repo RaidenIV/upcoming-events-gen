@@ -2,6 +2,8 @@
 
 import { renderPreview } from "./preview.js";
 
+const LAYLO_IMAGE_URL = new URL("../assets/laylo.png", import.meta.url).href;
+
 const $ = (id) => document.getElementById(id);
 const codeStatus = $("codeStatus");
 const clearButton = $("clearCodeButton");
@@ -275,11 +277,8 @@ function generateSnippet(data) {
     .filter(Boolean);
   const musicGridClass = musicBlocks.length === 1 ? " xmgR-music-grid-single" : "";
 
-  const updatesCard = `<a href="https://www.xodiamediagroup.com/updates" target="_blank" rel="noopener noreferrer" class="xmgR-promo-card xmgR-updates-card">
-<div class="xmgR-promo-tag">// Updates</div>
-<h3 class="xmgR-promo-title">Stay in the Loop</h3>
-<p class="xmgR-promo-body">Get exclusive event updates, presale alerts, and announcements delivered straight to you.</p>
-<span class="xmgR-promo-arrow">Sign Up →</span>
+  const updatesCard = `<a href="https://laylo.com/xodiamg" target="_blank" rel="noopener noreferrer" class="xmgR-promo-card xmgR-updates-card xmgR-laylo-card" aria-label="Get XODIA updates on Laylo">
+<img class="xmgR-laylo-image" src="${LAYLO_IMAGE_URL}" alt="Stay updated — text ACCESS to 858-762-9399">
 </a>`;
 
   const musicSection = musicBlocks.length ? `<div class="xmgR-music-section">
@@ -420,6 +419,8 @@ body::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backgr
 .xmgR-hero-updates .xmgR-promo-card{max-width:none}
 .xmgR-updates-card{aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:center;padding:32px}
 .xmgR-updates-card .xmgR-promo-body{margin-bottom:24px}
+.xmgR-updates-card.xmgR-laylo-card{padding:0}
+.xmgR-laylo-image{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}
 @media(max-width:1100px){
 .xmgR-hero-grid{--xmgR-side-col:clamp(220px,24vw,280px);--xmgR-title-col:clamp(360px,36vw,540px);gap:24px}
 .xmgR-below-grid{width:min(70%,680px)}
