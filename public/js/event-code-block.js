@@ -9,6 +9,7 @@ const codeStatus = $("codeStatus");
 const clearButton = $("clearCodeButton");
 const copyButton = $("copyEventCodeButton");
 const saveEventPageButton = $("saveEventPageButton");
+const downloadEventHtmlButton = $("downloadEventHtmlButton");
 const savedEventPagesSelect = $("savedEventPages");
 const loadSavedEventButton = $("loadSavedEventButton");
 const savedPagesHint = $("savedPagesHint");
@@ -1108,6 +1109,28 @@ function clearEventCodeForm() {
   generateEventCode();
 }
 
+function eventDownloadFilename() {
+  const slug = String($("eventName").value || "event-page")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${slug || "event-page"}.html`;
+}
+
+function downloadEventHtml() {
+  generateEventCode();
+  const blob = new Blob([generatedCode], { type: "text/html;charset=utf-8" });
+  const objectUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = objectUrl;
+  link.download = eventDownloadFilename();
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+}
+
 async function copyEventCode() {
   if (!generatedCode.trim()) {
     copyButton.textContent = "Generate First";
@@ -1253,6 +1276,7 @@ removeMusicEmbedButton.addEventListener("click", () => {
 
 clearButton.addEventListener("click", clearEventCodeForm);
 copyButton.addEventListener("click", copyEventCode);
+downloadEventHtmlButton.addEventListener("click", downloadEventHtml);
 saveEventPageButton.addEventListener("click", saveCurrentEventPage);
 loadSavedEventButton.addEventListener("click", () => { void loadSelectedEventPage(); });
 savedEventPagesSelect.addEventListener("change", () => {
