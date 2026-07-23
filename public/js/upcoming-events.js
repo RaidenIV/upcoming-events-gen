@@ -118,7 +118,7 @@ function saveCardSize() {
 }
 
 function scaledCardSize(baseSize) {
-  return Math.round(baseSize * (cardSizePercent / 100));
+  return Number((baseSize * (cardSizePercent / 100)).toFixed(2));
 }
 
 function syncCardSizeControl() {
@@ -415,14 +415,22 @@ function updateStatus(validEvents) {
   pageStatus.innerHTML = `<strong>${validEvents.length}</strong> upcoming event${validEvents.length === 1 ? "" : "s"} included${excluded.length ? ` · ${excluded.join(" · ")} excluded` : ""}.`;
 }
 
-function updateGeneratedPage() {
+function updateGeneratedPage({ immediate = false } = {}) {
   window.clearTimeout(updateTimer);
-  updateTimer = window.setTimeout(() => {
+
+  const renderGeneratedPage = () => {
     const validEvents = usableEvents();
     generatedCode = buildGeneratedPage(validEvents);
     renderPreview(generatedCode);
     updateStatus(validEvents);
-  }, 80);
+  };
+
+  if (immediate) {
+    renderGeneratedPage();
+    return;
+  }
+
+  updateTimer = window.setTimeout(renderGeneratedPage, 80);
 }
 
 function handleEditorInput(event) {
@@ -445,7 +453,7 @@ function handleCardSizeInput() {
   syncCardSizeControl();
   saveCardSize();
   markUnsaved();
-  updateGeneratedPage();
+  updateGeneratedPage({ immediate: true });
 }
 
 function setSaveIndicator(message, state = "") {
