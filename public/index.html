@@ -47,35 +47,37 @@
 
   <main class="app-workspace">
     <aside id="upcomingMode" class="sidebar mode-panel" aria-label="Upcoming event editor">
-      <section class="sidebar-controls" aria-labelledby="event-count-label">
-        <label id="event-count-label" for="eventCount">Number of Events to Add</label>
-        <input id="eventCount" type="number" min="1" max="20" step="1" inputmode="numeric" />
-        <p class="field-hint">Only complete events dated today or later are included.</p>
-      </section>
+      <div class="upcoming-sidebar-scroll">
+        <section class="sidebar-controls" aria-labelledby="event-count-label">
+          <label id="event-count-label" for="eventCount">Number of Events to Add</label>
+          <input id="eventCount" type="number" min="1" max="20" step="1" inputmode="numeric" />
+          <p class="field-hint">Only complete events dated today or later are included.</p>
+        </section>
 
-      <details class="upcoming-import-panel generator-section collapsible-generator-section">
-        <summary class="section-title collapsible-section-title">Import Generated Code</summary>
-        <div class="collapsible-section-content">
-          <div class="field-group">
-            <label for="importUpcomingCode">Paste Previously Generated Code</label>
-            <textarea id="importUpcomingCode" class="code-import-input" placeholder="Paste a previously generated upcoming events page code block here..."></textarea>
-            <p class="field-hint">Pasted code is converted back into editable event details and regenerated in the viewport.</p>
+        <details class="upcoming-import-panel generator-section collapsible-generator-section">
+          <summary class="section-title collapsible-section-title">Import Generated Code</summary>
+          <div class="collapsible-section-content">
+            <div class="field-group">
+              <label for="importUpcomingCode">Paste Previously Generated Code</label>
+              <textarea id="importUpcomingCode" class="code-import-input" placeholder="Paste a previously generated upcoming events page code block here..."></textarea>
+              <p class="field-hint">Pasted code is converted back into editable event details and regenerated in the viewport.</p>
+            </div>
+            <p id="upcomingImportStatus" class="field-hint upcoming-import-status" role="status" aria-live="polite"></p>
+            <button id="importUpcomingCodeButton" class="sidebar-action-button full-width-action" type="button">Import Code</button>
           </div>
-          <p id="upcomingImportStatus" class="field-hint upcoming-import-status" role="status" aria-live="polite"></p>
-          <button id="importUpcomingCodeButton" class="sidebar-action-button full-width-action" type="button">Import Code</button>
-        </div>
-      </details>
+        </details>
 
-      <section class="upcoming-card-size-control" aria-labelledby="card-size-label">
-        <div class="card-size-control-header">
-          <label id="card-size-label" for="cardSizeControl">Card Size</label>
-          <output id="cardSizeValue" for="cardSizeControl">100%</output>
-        </div>
-        <input id="cardSizeControl" class="card-size-range" type="range" min="60" max="140" step="5" value="100" />
-        <p class="field-hint">Adjusts the size of every card on the generated page.</p>
-      </section>
+        <section class="upcoming-card-size-control" aria-labelledby="card-size-label">
+          <div class="card-size-control-header">
+            <label id="card-size-label" for="cardSizeControl">Card Size</label>
+            <output id="cardSizeValue" for="cardSizeControl">100%</output>
+          </div>
+          <input id="cardSizeControl" class="card-size-range" type="range" min="60" max="140" step="1" value="100" />
+          <p class="field-hint">Adjusts the size of every card on the generated page.</p>
+        </section>
 
-      <div id="eventEditors" class="event-editors" aria-live="polite"></div>
+        <div id="eventEditors" class="event-editors" aria-live="polite"></div>
+      </div>
 
       <footer class="sidebar-footer">
         <div id="saveIndicator" class="save-indicator" role="status" aria-live="polite"></div>

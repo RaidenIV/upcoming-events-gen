@@ -97,8 +97,7 @@ function saveEvents() {
 function clampCardSize(value) {
   const parsed = Number.parseInt(value, 10);
   if (!Number.isFinite(parsed)) return DEFAULT_CARD_SIZE;
-  const stepped = Math.round(parsed / 5) * 5;
-  return Math.max(MIN_CARD_SIZE, Math.min(MAX_CARD_SIZE, stepped));
+  return Math.max(MIN_CARD_SIZE, Math.min(MAX_CARD_SIZE, parsed));
 }
 
 function loadCardSize() {
