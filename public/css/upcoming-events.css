@@ -202,3 +202,126 @@
 .upcoming-card-size-control .field-hint {
   margin-bottom: 0;
 }
+
+.event-mystery-controls {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--field);
+}
+
+.event-mystery-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.event-mystery-toggle-label {
+  margin: 0;
+  color: #c8c8cf;
+}
+
+.event-mystery-toggle {
+  position: relative;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 23px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: #08080a;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+
+.event-mystery-toggle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: transform 0.16s ease;
+}
+
+.event-mystery-toggle:checked {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.event-mystery-toggle:checked::after {
+  transform: translateX(18px);
+}
+
+.event-mystery-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.event-blur-control {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.event-blur-control[hidden] {
+  display: none;
+}
+
+.event-blur-control .card-size-control-header {
+  margin-bottom: 8px;
+}
+
+.event-blur-range {
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.event-blur-range::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.event-blur-range::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: grab;
+  -webkit-appearance: none;
+}
+
+.event-blur-range:active::-webkit-slider-thumb {
+  cursor: grabbing;
+}
+
+.event-blur-range::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.event-blur-range::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: grab;
+}
+
