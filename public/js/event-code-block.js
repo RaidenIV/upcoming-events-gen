@@ -927,18 +927,20 @@ function renderSavedEventPages(selectedId = currentSavedEventPageId) {
     options.push(`<option value="${escapeHtml(page.id)}">${escapeHtml(formatSavedPageOption(page))}</option>`);
   });
   savedEventPagesSelect.innerHTML = options.join("");
-  savedEventPagesSelect.value = selectedId || "";
-  loadSavedEventButton.disabled = !selectedId;
+  const availableSelectedId = savedEventPages.some((page) => page.id === selectedId) ? selectedId : "";
+  savedEventPagesSelect.value = availableSelectedId;
+  loadSavedEventButton.disabled = !availableSelectedId;
   savedPagesHint.textContent = savedEventPages.length
-    ? `${savedEventPages.length} saved page${savedEventPages.length === 1 ? "" : "s"} available on the server.`
-    : "No saved event pages are on the server yet.";
+    ? `${savedEventPages.length} saved page${savedEventPages.length === 1 ? "" : "s"} available.`
+    : "No saved event pages yet.";
 }
 
-async function loadSavedEventPages(selectedId = currentSavedEventPageId) {
+async function loadSavedEventPages(selectedId = currentSavedEventPageId, additionalPages = []) {
   loadSavedEventButton.disabled = true;
 
   const localPages = loadLocalSavedEventPages();
-  savedEventPages = localPages;
+  const retainedPages = mergeSavedEventPageLists(additionalPages, savedEventPages, localPages);
+  savedEventPages = retainedPages;
   savedPagesLoaded = true;
   renderSavedEventPages(selectedId);
 
@@ -951,15 +953,15 @@ async function loadSavedEventPages(selectedId = currentSavedEventPageId) {
     if (!response.ok) throw new Error(result.error || "Saved pages could not be loaded.");
 
     const serverPages = Array.isArray(result.pages) ? result.pages : [];
-    savedEventPages = mergeSavedEventPageLists(serverPages, localPages);
+    savedEventPages = mergeSavedEventPageLists(serverPages, retainedPages);
     persistLocalSavedEventPages(savedEventPages);
     renderSavedEventPages(selectedId);
   } catch (error) {
     console.error("Saved event pages could not be loaded from the server.", error);
-    savedEventPages = localPages;
+    savedEventPages = retainedPages;
     renderSavedEventPages(selectedId);
-    savedPagesHint.textContent = localPages.length
-      ? `${localPages.length} saved page${localPages.length === 1 ? "" : "s"} available from this browser. Server recall is currently unavailable.`
+    savedPagesHint.textContent = retainedPages.length
+      ? `${retainedPages.length} saved page${retainedPages.length === 1 ? "" : "s"} available from this browser. Server recall is currently unavailable.`
       : "Saved pages are unavailable from the server and none are stored in this browser.";
   }
 }
@@ -987,8 +989,10 @@ async function saveCurrentEventPage() {
     }
 
     currentSavedEventPageId = result.page.id;
-    persistLocalSavedEventPages(mergeSavedEventPageLists([result.page], loadLocalSavedEventPages()));
-    await loadSavedEventPages(currentSavedEventPageId);
+    savedEventPages = mergeSavedEventPageLists([result.page], savedEventPages, loadLocalSavedEventPages());
+    persistLocalSavedEventPages(savedEventPages);
+    renderSavedEventPages(currentSavedEventPageId);
+    await loadSavedEventPages(currentSavedEventPageId, [result.page]);
     codeStatus.textContent = `Saved “${result.page.name}” to the server.`;
     saveEventPageButton.textContent = "Saved";
     saveEventPageButton.classList.add("saved");

@@ -91,9 +91,20 @@
           </div>
           <div class="event-display-toggle-row">
             <label class="event-display-toggle-label" for="singleRowNavigation">Single Row With Navigation Arrows</label>
-            <input id="singleRowNavigation" class="event-mystery-toggle" type="checkbox" />
+            <input id="singleRowNavigation" class="event-mystery-toggle" type="checkbox" aria-controls="carouselVisibleCardsField" />
           </div>
-          <p class="field-hint">Grid mode wraps all events. Single-row mode uses arrows to move horizontally through them.</p>
+          <div id="carouselVisibleCardsField" class="field-group carousel-visible-cards-field" hidden>
+            <label for="carouselVisibleCards">Cards Visible</label>
+            <select id="carouselVisibleCards">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3">3</option>
+              <option value="4">4</option>
+              <option value="5" selected>5</option>
+              <option value="6">6</option>
+            </select>
+          </div>
+          <p class="field-hint">Grid mode wraps all events. Single-row mode uses arrows to move smoothly through complete cards.</p>
         </section>
 
         <div id="eventEditors" class="event-editors" aria-live="polite"></div>

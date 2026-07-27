@@ -360,3 +360,8 @@
   cursor: grab;
 }
 
+
+.carousel-visible-cards-field {
+  margin-top: 12px;
+  margin-bottom: 0;
+}
