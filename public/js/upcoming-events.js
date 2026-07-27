@@ -692,31 +692,71 @@ function downloadGeneratedHtml() {
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
 }
 
-async function copyGeneratedCode() {
-  if (!generatedCode) {
-    generatedCode = buildGeneratedPage(usableEvents());
+function copyWithSelectionFallback(text) {
+  const activeElement = document.activeElement;
+  const fallback = document.createElement("textarea");
+  fallback.value = text;
+  fallback.setAttribute("aria-hidden", "true");
+  fallback.style.position = "fixed";
+  fallback.style.top = "0";
+  fallback.style.left = "-9999px";
+  fallback.style.width = "1px";
+  fallback.style.height = "1px";
+  fallback.style.fontSize = "16px";
+  fallback.style.opacity = "0";
+  document.body.appendChild(fallback);
+
+  let copied = false;
+  try {
+    fallback.focus({ preventScroll: true });
+    fallback.select();
+    fallback.setSelectionRange(0, fallback.value.length);
+    copied = document.execCommand("copy");
+  } catch (error) {
+    console.warn("The selection-based clipboard fallback failed.", error);
+  } finally {
+    fallback.remove();
+    if (activeElement instanceof HTMLElement) {
+      activeElement.focus({ preventScroll: true });
+    }
   }
 
-  try {
-    await navigator.clipboard.writeText(generatedCode);
-  } catch {
-    const fallback = document.createElement("textarea");
-    fallback.value = generatedCode;
-    fallback.setAttribute("readonly", "");
-    fallback.style.position = "fixed";
-    fallback.style.opacity = "0";
-    document.body.appendChild(fallback);
-    fallback.select();
-    document.execCommand("copy");
-    fallback.remove();
+  return copied;
+}
+
+async function writeGeneratedCodeToClipboard(text) {
+  // Run the synchronous path first so browsers that restrict clipboard access
+  // retain the button click's user activation for the fallback copy operation.
+  if (copyWithSelectionFallback(text)) return;
+
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
   }
+
+  throw new Error("Clipboard access is unavailable in this browser context.");
+}
+
+async function copyGeneratedCode() {
+  refreshGeneratedPageNow();
 
   const originalText = copyCodeButton.textContent;
-  copyCodeButton.textContent = "COPIED";
-  copyCodeButton.classList.add("copied");
+  copyCodeButton.disabled = true;
+
+  try {
+    await writeGeneratedCodeToClipboard(generatedCode);
+    copyCodeButton.textContent = "COPIED";
+    copyCodeButton.classList.add("copied");
+  } catch (error) {
+    console.error("The generated upcoming-events code could not be copied.", error);
+    copyCodeButton.textContent = "COPY FAILED";
+    copyCodeButton.classList.remove("copied");
+  }
+
   window.setTimeout(() => {
     copyCodeButton.textContent = originalText;
     copyCodeButton.classList.remove("copied");
+    copyCodeButton.disabled = false;
   }, 1400);
 }
 
