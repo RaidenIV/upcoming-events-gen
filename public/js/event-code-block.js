@@ -331,7 +331,7 @@ body::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;backgr
 .xmgR-split-line span:last-child{background:linear-gradient(to left,transparent,var(--cold))}
 .xmgR-split-line em{font-style:normal;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;color:var(--muted);padding:0 18px;white-space:nowrap;font-family:'DM Mono',monospace;font-weight:300}
 .xmgR-hero-title{text-align:left;margin-bottom:12px;animation:xmgR-fadeDown 0.7s 0.15s ease both;width:100%}
-.xmgR-hero-title-text{font-family:'Bebas Neue',sans-serif;font-size:clamp(72px,10vw,150px);line-height:0.9;letter-spacing:0.02em;color:#ffffff;display:block;width:100%;max-width:100%;white-space:normal;word-break:normal;overflow-wrap:normal;hyphens:none;text-wrap:balance}
+.xmgR-hero-title-text{font-family:'Bebas Neue',sans-serif;font-size:clamp(72px,10vw,150px);line-height:0.9;letter-spacing:0.02em;color:#ffffff;display:block;width:100%;max-width:100%;white-space:normal;word-break:break-word;text-wrap:balance}
 .xmgR-hero-sub{text-align:left;font-size:16px;letter-spacing:0.12em;text-transform:uppercase;color:var(--muted);font-weight:400;margin-bottom:24px;font-family:'DM Mono',monospace;max-width:780px;animation:xmgR-fadeDown 0.7s 0.2s ease both}
 .xmgR-countdown-wrap{display:flex;justify-content:flex-start;align-items:flex-end;gap:0;margin-bottom:10px;flex-wrap:wrap;animation:xmgR-fadeDown 0.7s 0.25s ease both}
 .xmgR-count-unit{display:flex;flex-direction:column;align-items:center;padding:0 18px;position:relative}
@@ -538,9 +538,6 @@ titleText.style.maxWidth='100%';
 titleText.style.width='100%';
 titleText.style.display='block';
 titleText.style.whiteSpace='normal';
-titleText.style.wordBreak='normal';
-titleText.style.overflowWrap='normal';
-titleText.style.hyphens='none';
 var maxLines=vw<=600?3:2;
 while(size>min){
   var box=titleText.getBoundingClientRect();
@@ -552,14 +549,7 @@ while(size>min){
   size-=1;
   titleText.style.fontSize=size+'px';
 }
-if(titleText.scrollWidth>wrapWidth+1){
-  var hardMin=18;
-  while(size>hardMin&&titleText.scrollWidth>wrapWidth+1){
-    size-=1;
-    titleText.style.fontSize=size+'px';
-  }
-}
-titleText.style.fontSize=Math.max(size,18)+'px';
+titleText.style.fontSize=Math.max(size,min)+'px';
 }
 function scheduleFitTitle(){
 if(fitTitleRAF)cancelAnimationFrame(fitTitleRAF);

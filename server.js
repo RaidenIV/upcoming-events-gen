@@ -45,9 +45,7 @@ function sendFile(res, filePath, cacheControl) {
 
     res.writeHead(200, {
       "Content-Type": MIME_TYPES[path.extname(filePath).toLowerCase()] || "application/octet-stream",
-      "Cache-Control": cacheControl || ([".html", ".js", ".css"].includes(path.extname(filePath).toLowerCase())
-      ? "no-cache"
-      : "public, max-age=3600")
+      "Cache-Control": cacheControl || (path.extname(filePath) === ".html" ? "no-cache" : "public, max-age=3600")
     });
     res.end(data);
   });
