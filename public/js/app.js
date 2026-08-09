@@ -1,7 +1,7 @@
 "use strict";
 
-import { activateUpcomingEvents } from "./upcoming-events.js";
-import { activateEventCodeBlock } from "./event-code-block.js";
+import { activateUpcomingEvents } from "./upcoming-events.js?v=20260809-carousel";
+import { activateEventCodeBlock } from "./event-code-block.js?v=20260809-carousel";
 import { setPreviewTitle } from "./preview.js";
 
 const appTitle = document.getElementById("appTitle");
