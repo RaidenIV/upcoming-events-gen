@@ -297,7 +297,12 @@ function editorMarkup(event, index) {
     <section class="event-editor" data-index="${index}">
       <div class="event-editor-header">
         <h2>Event ${index + 1}</h2>
-        <span class="event-state">Incomplete</span>
+        <div class="event-editor-header-actions">
+          <span class="event-state">Incomplete</span>
+          <button type="button" class="event-editor-remove" data-action="remove-event" aria-label="Remove event ${index + 1}" title="Remove event">
+            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+          </button>
+        </div>
       </div>
 
       <div class="field-group">
@@ -448,6 +453,9 @@ function updateEditorState(editor) {
   const blurToggle = editor.querySelector('[data-field="blurFlyer"]');
   const blurControl = editor.querySelector(".event-blur-control");
   const blurValue = editor.querySelector(".event-blur-value");
+  const removeButton = editor.querySelector('[data-action="remove-event"]');
+
+  if (removeButton) removeButton.disabled = events.length <= 1;
 
   editor.classList.remove("is-past");
   datePreview.textContent = formatEventDate(event.date);
@@ -582,6 +590,27 @@ function updateGeneratedPage({ immediate = false } = {}) {
   }
 
   updateTimer = window.setTimeout(renderGeneratedPage, 80);
+}
+
+function removeEventAt(index) {
+  if (!Number.isInteger(index) || index < 0 || index >= events.length) return;
+  if (events.length <= 1) return;
+
+  events.splice(index, 1);
+  saveEvents();
+  renderEditors();
+  markUnsaved();
+  updateGeneratedPage();
+}
+
+function handleEditorClick(event) {
+  const removeButton = event.target.closest('[data-action="remove-event"]');
+  if (!removeButton) return;
+
+  const editor = removeButton.closest(".event-editor");
+  if (!editor) return;
+
+  removeEventAt(Number(editor.dataset.index));
 }
 
 function handleEditorInput(event) {
@@ -764,6 +793,7 @@ async function copyGeneratedCode() {
 eventCountInput.addEventListener("change", () => resizeEventList(eventCountInput.value));
 eventEditors.addEventListener("input", handleEditorInput);
 eventEditors.addEventListener("change", handleEditorInput);
+eventEditors.addEventListener("click", handleEditorClick);
 copyCodeButton.addEventListener("click", copyGeneratedCode);
 downloadUpcomingHtmlButton.addEventListener("click", downloadGeneratedHtml);
 savePageButton.addEventListener("click", saveGeneratedPage);
