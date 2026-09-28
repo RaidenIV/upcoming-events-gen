@@ -7,6 +7,7 @@ const LAYLO_IMAGE_URL = new URL("../assets/laylo.png", import.meta.url).href;
 const STORAGE_KEY = "xmg-upcoming-events-generator-v1";
 const CARD_SIZE_STORAGE_KEY = "xmg-upcoming-events-card-size-v1";
 const DISPLAY_STORAGE_KEY = "xmg-upcoming-events-display-v1";
+const HIDE_PAST_STORAGE_KEY = "xmg-upcoming-events-hide-past-v1";
 const DEFAULT_CARD_SIZE = 100;
 const MIN_CARD_SIZE = 60;
 const MAX_CARD_SIZE = 140;
@@ -72,12 +73,19 @@ const eventsPerRowControl = document.getElementById("eventsPerRow");
 const singleRowNavigationControl = document.getElementById("singleRowNavigation");
 const carouselVisibleCardsField = document.getElementById("carouselVisibleCardsField");
 const carouselVisibleCardsControl = document.getElementById("carouselVisibleCards");
+const sortByDateButton = document.getElementById("sortByDateButton");
+const clearAllEventsButton = document.getElementById("clearAllEventsButton");
+const undoButton = document.getElementById("undoButton");
+const redoButton = document.getElementById("redoButton");
+const hidePastEventsControl = document.getElementById("hidePastEvents");
 
 let events = loadEvents();
 let cardSizePercent = loadCardSize();
 let { eventsPerRow, singleRowNavigation, carouselVisibleCards } = loadDisplaySettings();
+let hidePastEvents = loadHidePastEvents();
 let generatedCode = "";
 let updateTimer = 0;
+let hasUnsavedServerChanges = false;
 
 function cloneEvent(event = {}) {
   return {
@@ -109,6 +117,22 @@ function saveEvents() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(events));
   } catch (error) {
     console.warn("Event data could not be saved.", error);
+  }
+}
+
+function loadHidePastEvents() {
+  try {
+    return localStorage.getItem(HIDE_PAST_STORAGE_KEY) === "true";
+  } catch (error) {
+    return false;
+  }
+}
+
+function saveHidePastEvents() {
+  try {
+    localStorage.setItem(HIDE_PAST_STORAGE_KEY, String(hidePastEvents));
+  } catch (error) {
+    console.warn("Hide-past-events setting could not be saved.", error);
   }
 }
 
@@ -291,15 +315,99 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+const flyerCheckCache = new Map();
+const flyerCheckTimers = new Map();
+
+function flyerStatusMessage(url) {
+  const trimmed = String(url || "").trim();
+  if (!trimmed) return null;
+  return flyerCheckCache.get(trimmed) || null;
+}
+
+function setFlyerStatusDom(index, url, result) {
+  const status = document.getElementById(`event-flyer-status-${index}`);
+  if (!status) return;
+  const currentEvent = events[index];
+  if (!currentEvent || currentEvent.flyer.trim() !== url) return;
+  status.textContent = result ? result.message : "";
+  status.classList.toggle("is-warning", result?.tone === "warning");
+  status.classList.toggle("is-error", result?.tone === "error");
+}
+
+function checkFlyerImage(index) {
+  const event = events[index];
+  if (!event) return;
+  const url = event.flyer.trim();
+  window.clearTimeout(flyerCheckTimers.get(index));
+
+  if (!url) {
+    setFlyerStatusDom(index, "", null);
+    return;
+  }
+
+  const cached = flyerCheckCache.get(url);
+  if (cached !== undefined) {
+    setFlyerStatusDom(index, url, cached);
+    return;
+  }
+
+  const timer = window.setTimeout(() => {
+    const probe = new Image();
+    probe.onload = () => {
+      const { naturalWidth: w, naturalHeight: h } = probe;
+      let result = null;
+      if (w && h && Math.abs(w - h) / Math.max(w, h) > 0.03) {
+        result = { tone: "warning", message: `Image is ${w}\u00d7${h}, not square — it may crop unexpectedly.` };
+      }
+      flyerCheckCache.set(url, result);
+      setFlyerStatusDom(index, url, result);
+    };
+    probe.onerror = () => {
+      const result = { tone: "error", message: "Image failed to load. Double-check the URL." };
+      flyerCheckCache.set(url, result);
+      setFlyerStatusDom(index, url, result);
+    };
+    probe.src = url;
+  }, 500);
+  flyerCheckTimers.set(index, timer);
+}
+
+function eventUrlWarning(url) {
+  const trimmed = String(url || "").trim();
+  if (!trimmed) return "";
+  if (trimmed.startsWith("/")) return "";
+  if (/^https?:\/\//i.test(trimmed)) return "";
+  return "Should start with / (e.g. /event-name) or be a full https:// link.";
+}
+
+function updateUrlStatusDom(index) {
+  const status = document.getElementById(`event-url-status-${index}`);
+  if (!status) return;
+  const warning = eventUrlWarning(events[index]?.url || "");
+  status.textContent = warning;
+  status.classList.toggle("is-warning", Boolean(warning));
+}
+
 function editorMarkup(event, index) {
   const formattedDate = formatEventDate(event.date);
+  const flyerWarning = flyerStatusMessage(event.flyer);
+  const urlWarning = eventUrlWarning(event.url);
   return `
     <section class="event-editor" data-index="${index}">
       <div class="event-editor-header">
         <h2>Event ${index + 1}</h2>
         <div class="event-editor-header-actions">
           <span class="event-state">Incomplete</span>
-          <button type="button" class="event-editor-remove" data-action="remove-event" aria-label="Remove event ${index + 1}" title="Remove event">
+          <button type="button" class="event-editor-icon-button" data-action="move-up" aria-label="Move event ${index + 1} up" title="Move up">
+            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M12 5l7 7M12 5l-7 7M12 5v14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" class="event-editor-icon-button" data-action="move-down" aria-label="Move event ${index + 1} down" title="Move down">
+            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M12 19l7-7M12 19l-7-7M12 19V5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <button type="button" class="event-editor-icon-button" data-action="duplicate-event" aria-label="Duplicate event ${index + 1}" title="Duplicate event">
+            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+          </button>
+          <button type="button" class="event-editor-icon-button event-editor-remove" data-action="remove-event" aria-label="Remove event ${index + 1}" title="Remove event">
             <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
           </button>
         </div>
@@ -331,6 +439,7 @@ function editorMarkup(event, index) {
       <div class="field-group">
         <label for="event-flyer-${index}">Flyer Link (Square Only)</label>
         <input id="event-flyer-${index}" data-field="flyer" type="url" value="${escapeHtml(event.flyer)}" placeholder="https://.../square-flyer.jpg" />
+        <p class="field-hint flyer-status${flyerWarning ? ` is-${flyerWarning.tone}` : ""}" id="event-flyer-status-${index}" role="status" aria-live="polite">${flyerWarning ? escapeHtml(flyerWarning.message) : ""}</p>
       </div>
 
       <div class="field-group event-mystery-controls">
@@ -350,18 +459,21 @@ function editorMarkup(event, index) {
       <div class="field-group">
         <label for="event-url-${index}">Event Page URL</label>
         <input id="event-url-${index}" data-field="url" type="text" inputmode="url" autocomplete="url" value="${escapeHtml(event.url)}" placeholder="/event-page or https://..." />
+        <p class="field-hint url-status${urlWarning ? " is-warning" : ""}" id="event-url-status-${index}" role="status" aria-live="polite">${urlWarning ? escapeHtml(urlWarning) : ""}</p>
       </div>
     </section>`;
 }
 
 function renderEditors() {
   eventCountInput.value = String(events.length);
+  document.body.classList.toggle("hide-past-events", hidePastEvents);
   eventEditors.innerHTML = events
     .map((event, index) => ({ event, index }))
     .reverse()
     .map(({ event, index }) => editorMarkup(event, index))
     .join("");
   eventEditors.querySelectorAll(".event-editor").forEach(updateEditorState);
+  events.forEach((_, index) => checkFlyerImage(index));
 }
 
 function parseImportedDate(dateText) {
@@ -427,6 +539,7 @@ function importPastedUpcomingCode() {
 
   try {
     const imported = parseGeneratedUpcomingEventsCode(pastedCode);
+    pushUndoBeforeChange();
     events = imported.events;
     eventsPerRow = imported.eventsPerRow;
     singleRowNavigation = imported.singleRowNavigation;
@@ -454,8 +567,14 @@ function updateEditorState(editor) {
   const blurControl = editor.querySelector(".event-blur-control");
   const blurValue = editor.querySelector(".event-blur-value");
   const removeButton = editor.querySelector('[data-action="remove-event"]');
+  const moveUpButton = editor.querySelector('[data-action="move-up"]');
+  const moveDownButton = editor.querySelector('[data-action="move-down"]');
+  const duplicateButton = editor.querySelector('[data-action="duplicate-event"]');
 
   if (removeButton) removeButton.disabled = events.length <= 1;
+  if (moveUpButton) moveUpButton.disabled = index >= events.length - 1;
+  if (moveDownButton) moveDownButton.disabled = index <= 0;
+  if (duplicateButton) duplicateButton.disabled = events.length >= MAX_EVENTS;
 
   editor.classList.remove("is-past");
   datePreview.textContent = formatEventDate(event.date);
@@ -477,6 +596,8 @@ function updateEditorState(editor) {
 
 function resizeEventList(nextCount) {
   const count = clampCount(nextCount);
+  if (count === events.length) return;
+  pushUndoBeforeChange();
   if (count > events.length) {
     while (events.length < count) events.push(cloneEvent());
   } else if (count < events.length) {
@@ -596,6 +717,7 @@ function removeEventAt(index) {
   if (!Number.isInteger(index) || index < 0 || index >= events.length) return;
   if (events.length <= 1) return;
 
+  pushUndoBeforeChange();
   events.splice(index, 1);
   saveEvents();
   renderEditors();
@@ -603,14 +725,138 @@ function removeEventAt(index) {
   updateGeneratedPage();
 }
 
-function handleEditorClick(event) {
-  const removeButton = event.target.closest('[data-action="remove-event"]');
-  if (!removeButton) return;
+function moveEventAt(index, offset) {
+  const target = index + offset;
+  if (!Number.isInteger(index) || index < 0 || index >= events.length) return;
+  if (target < 0 || target >= events.length) return;
 
-  const editor = removeButton.closest(".event-editor");
+  pushUndoBeforeChange();
+  const [moved] = events.splice(index, 1);
+  events.splice(target, 0, moved);
+  saveEvents();
+  renderEditors();
+  markUnsaved();
+  updateGeneratedPage();
+}
+
+function duplicateEventAt(index) {
+  if (!Number.isInteger(index) || index < 0 || index >= events.length) return;
+  if (events.length >= MAX_EVENTS) return;
+
+  pushUndoBeforeChange();
+  events.splice(index + 1, 0, cloneEvent(events[index]));
+  saveEvents();
+  renderEditors();
+  markUnsaved();
+  updateGeneratedPage();
+}
+
+function sortEventsByDate() {
+  pushUndoBeforeChange();
+  events = events
+    .map((event, originalIndex) => ({ event, originalIndex }))
+    .sort((a, b) => {
+      const dateA = a.event.date.trim();
+      const dateB = b.event.date.trim();
+      if (!dateA && !dateB) return a.originalIndex - b.originalIndex;
+      if (!dateA) return 1;
+      if (!dateB) return -1;
+      return dateA.localeCompare(dateB) || a.originalIndex - b.originalIndex;
+    })
+    .map(({ event }) => event);
+  saveEvents();
+  renderEditors();
+  markUnsaved();
+  updateGeneratedPage();
+}
+
+function clearAllEvents() {
+  if (!window.confirm("Remove all events? This can be undone.")) return;
+
+  pushUndoBeforeChange();
+  events = [cloneEvent()];
+  saveEvents();
+  renderEditors();
+  markUnsaved();
+  updateGeneratedPage();
+}
+
+const MAX_HISTORY = 50;
+let undoStack = [];
+let redoStack = [];
+
+function snapshotEvents() {
+  return JSON.stringify(events.map(cloneEvent));
+}
+
+function pushUndoSnapshot(snapshot) {
+  undoStack.push(snapshot);
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack = [];
+  updateHistoryButtons();
+}
+
+function pushUndoBeforeChange() {
+  pushUndoSnapshot(snapshotEvents());
+}
+
+function restoreSnapshot(json) {
+  events = JSON.parse(json).map(cloneEvent);
+}
+
+function undo() {
+  if (!undoStack.length) return;
+  const current = snapshotEvents();
+  const previous = undoStack.pop();
+  redoStack.push(current);
+  restoreSnapshot(previous);
+  saveEvents();
+  renderEditors();
+  markUnsaved();
+  updateGeneratedPage();
+  updateHistoryButtons();
+}
+
+function redo() {
+  if (!redoStack.length) return;
+  const current = snapshotEvents();
+  const next = redoStack.pop();
+  undoStack.push(current);
+  restoreSnapshot(next);
+  saveEvents();
+  renderEditors();
+  markUnsaved();
+  updateGeneratedPage();
+  updateHistoryButtons();
+}
+
+function updateHistoryButtons() {
+  if (undoButton) undoButton.disabled = undoStack.length === 0;
+  if (redoButton) redoButton.disabled = redoStack.length === 0;
+}
+
+function handleEditorClick(event) {
+  const actionButton = event.target.closest("[data-action]");
+  if (!actionButton) return;
+
+  const editor = actionButton.closest(".event-editor");
   if (!editor) return;
 
-  removeEventAt(Number(editor.dataset.index));
+  const index = Number(editor.dataset.index);
+  const action = actionButton.dataset.action;
+
+  if (action === "remove-event") removeEventAt(index);
+  else if (action === "move-up") moveEventAt(index, 1);
+  else if (action === "move-down") moveEventAt(index, -1);
+  else if (action === "duplicate-event") duplicateEventAt(index);
+}
+
+let pendingFieldSnapshot = null;
+
+function handleEditorFocusIn(event) {
+  const input = event.target.closest("input[data-field], textarea[data-field]");
+  if (!input) return;
+  pendingFieldSnapshot = snapshotEvents();
 }
 
 function handleEditorInput(event) {
@@ -629,10 +875,21 @@ function handleEditorInput(event) {
     events[index][field] = input.value;
   }
 
+  if (field === "flyer") checkFlyerImage(index);
+  if (field === "url") updateUrlStatusDom(index);
+
   saveEvents();
   updateEditorState(editor);
   markUnsaved();
   updateGeneratedPage();
+
+  if (event.type === "change") {
+    const current = snapshotEvents();
+    if (pendingFieldSnapshot !== null && pendingFieldSnapshot !== current) {
+      pushUndoSnapshot(pendingFieldSnapshot);
+    }
+    pendingFieldSnapshot = null;
+  }
 }
 
 function handleCardSizeInput() {
@@ -660,6 +917,7 @@ function setSaveIndicator(message, state = "") {
 }
 
 function markUnsaved() {
+  hasUnsavedServerChanges = true;
   setSaveIndicator("Unsaved changes", "unsaved");
 }
 
@@ -693,6 +951,7 @@ async function saveGeneratedPage() {
       throw new Error(result.error || "The server could not save the page.");
     }
 
+    hasUnsavedServerChanges = false;
     setSaveIndicator("Saved to server", "saved");
     savePageButton.textContent = "Saved";
     savePageButton.classList.add("saved");
@@ -790,10 +1049,31 @@ async function copyGeneratedCode() {
 }
 
 
+function handleHidePastEventsToggle() {
+  hidePastEvents = hidePastEventsControl.checked;
+  saveHidePastEvents();
+  document.body.classList.toggle("hide-past-events", hidePastEvents);
+}
+
+function handleGlobalKeydown(event) {
+  const isUndoKey = (event.ctrlKey || event.metaKey) && !event.shiftKey && event.key.toLowerCase() === "z";
+  const isRedoKey =
+    (event.ctrlKey || event.metaKey) &&
+    (event.key.toLowerCase() === "y" || (event.shiftKey && event.key.toLowerCase() === "z"));
+  if (!isUndoKey && !isRedoKey) return;
+  if (document.body.classList.contains("is-code-mode")) return;
+  if (event.target instanceof HTMLElement && (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA")) return;
+
+  event.preventDefault();
+  if (isRedoKey) redo();
+  else undo();
+}
+
 eventCountInput.addEventListener("change", () => resizeEventList(eventCountInput.value));
 eventEditors.addEventListener("input", handleEditorInput);
 eventEditors.addEventListener("change", handleEditorInput);
 eventEditors.addEventListener("click", handleEditorClick);
+eventEditors.addEventListener("focusin", handleEditorFocusIn);
 copyCodeButton.addEventListener("click", copyGeneratedCode);
 downloadUpcomingHtmlButton.addEventListener("click", downloadGeneratedHtml);
 savePageButton.addEventListener("click", saveGeneratedPage);
@@ -806,9 +1086,22 @@ cardSizeControl.addEventListener("change", handleCardSizeInput);
 eventsPerRowControl.addEventListener("change", handleDisplayInput);
 singleRowNavigationControl.addEventListener("change", handleDisplayInput);
 carouselVisibleCardsControl.addEventListener("change", handleDisplayInput);
+sortByDateButton.addEventListener("click", sortEventsByDate);
+clearAllEventsButton.addEventListener("click", clearAllEvents);
+undoButton.addEventListener("click", undo);
+redoButton.addEventListener("click", redo);
+hidePastEventsControl.addEventListener("change", handleHidePastEventsToggle);
+document.addEventListener("keydown", handleGlobalKeydown);
+window.addEventListener("beforeunload", (event) => {
+  if (!hasUnsavedServerChanges) return;
+  event.preventDefault();
+  event.returnValue = "";
+});
 
 syncCardSizeControl();
 syncDisplayControls();
+hidePastEventsControl.checked = hidePastEvents;
+updateHistoryButtons();
 renderEditors();
 updateGeneratedPage();
 

@@ -54,6 +54,21 @@
           <p class="field-hint">Only complete events dated today or later are included.</p>
         </section>
 
+        <section class="sidebar-controls event-toolbar" aria-label="Event list actions">
+          <div class="event-toolbar-row">
+            <button id="sortByDateButton" class="sidebar-action-button" type="button">Sort by Date</button>
+            <button id="clearAllEventsButton" class="sidebar-action-button" type="button">Clear All</button>
+          </div>
+          <div class="event-toolbar-row">
+            <button id="undoButton" class="sidebar-action-button" type="button" disabled title="Undo (Ctrl+Z)">Undo</button>
+            <button id="redoButton" class="sidebar-action-button" type="button" disabled title="Redo (Ctrl+Shift+Z)">Redo</button>
+          </div>
+          <div class="event-display-toggle-row">
+            <label class="event-display-toggle-label" for="hidePastEvents">Hide Past Events</label>
+            <input id="hidePastEvents" class="event-mystery-toggle" type="checkbox" />
+          </div>
+        </section>
+
         <details class="upcoming-import-panel generator-section collapsible-generator-section">
           <summary class="section-title collapsible-section-title">Import Generated Code</summary>
           <div class="collapsible-section-content">
