@@ -17,6 +17,7 @@ const defaults = {
 };
 let templatePromise;
 let generatedCode = "";
+let lastValidCode = "";
 let updateSequence = 0;
 
 function safeUrl(value) {
@@ -71,19 +72,24 @@ function fill(data) { for (const key of Object.keys(defaults)) form.elements.nam
 try { fill({ ...defaults, ...JSON.parse(localStorage.getItem(storageKey) || "{}") }); }
 catch { fill(defaults); }
 
+async function loadTemplate() {
+  if (!templatePromise) templatePromise = fetch(new URL("../kid-rave-template.html", import.meta.url)).then(response => {
+    if (!response.ok) throw new Error("The KID RAVE template could not be loaded.");
+    return response.text();
+  }).catch(error => { templatePromise = undefined; throw error; });
+  return templatePromise;
+}
+
 async function update() {
   const sequence = ++updateSequence;
   generatedCode = "";
   if (!form.checkValidity()) { status.textContent = "Complete all fields with valid values to generate the page."; return false; }
   const data = readData();
   try {
-    if (!templatePromise) templatePromise = fetch("./kid-rave-template.html").then(response => {
-      if (!response.ok) throw new Error("The KID RAVE template could not be loaded.");
-      return response.text();
-    }).catch(error => { templatePromise = undefined; throw error; });
-    const template = await templatePromise;
+    const template = await loadTemplate();
     if (sequence !== updateSequence) return false;
     generatedCode = buildKidRavePage(template, data);
+    lastValidCode = generatedCode;
     let saved = true;
     try { localStorage.setItem(storageKey, JSON.stringify(data)); } catch { saved = false; }
     if (!panel.hidden) renderPreview(generatedCode);
@@ -114,4 +120,16 @@ document.getElementById("kidDownload").addEventListener("click", async () => {
   document.body.append(link); link.click(); link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 });
-export function activateKidRave() { update(); }
+export async function activateKidRave() {
+  // Switching modes must switch the preview even when the form is incomplete.
+  // Keep invalid draft fields untouched and show the last valid page or template.
+  status.textContent = "Loading KID RAVE preview…";
+  try {
+    const template = await loadTemplate();
+    if (panel.hidden) return;
+    renderPreview(lastValidCode || template, { force: true });
+    await update();
+  } catch (error) {
+    if (!panel.hidden) status.textContent = error.message;
+  }
+}
