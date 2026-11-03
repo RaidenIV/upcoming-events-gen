@@ -1196,6 +1196,28 @@
     .next-event-card:hover .next-event-flyer img { transform: none; }
   }
 
+
+  /* Featured card: square flyer and compact content, matching Upcoming Events. */
+  .next-event-card { aspect-ratio: 1 / 1.45; }
+  .next-event-flyer { flex-shrink: 0; }
+  .next-event-content { padding: 8px 12px; }
+  .next-event-title { font-size: 20px; line-height: 1.2; min-height: 2.4em; margin-bottom: 3px; }
+  .next-event-venue { font-size: 15px; }
+  .next-event-description { font-size: 14px; margin: 0 0 10px; }
+  .next-event-arrow { width: 22px; height: 22px; }
+  .next-event-arrow-icon { width: 13px; height: 13px; }
+  .next-event-location-icon { color: var(--purple); }
+  .cta-section #cta-heading { margin-bottom: 0; }
+  .cta-section .reveal > p { color: #fff !important; margin: 16px 0; font-size: 18px; }
+  @media (max-width: 540px) {
+    .next-event-content { padding: 12px 18px; }
+    .next-event-title { min-height: 0; }
+    .next-event-venue, .next-event-description { font-size: 13px; }
+    .next-event-arrow { width: 28px; height: 28px; }
+    .next-event-arrow-icon { width: 16px; height: 16px; }
+    .cta-section .reveal > p { margin: 12px 0; font-size: 16px; }
+  }
+
 </style>
 </head>
 <body>
