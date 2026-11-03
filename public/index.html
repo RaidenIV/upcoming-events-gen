@@ -37,6 +37,11 @@
       >
         <span class="mode-toggle-knob" aria-hidden="true"></span>
       </button>
+      <select id="generatorMode" aria-label="Generator mode" style="min-width:0;max-width:210px">
+        <option value="upcoming">Upcoming Events</option>
+        <option value="code">Event Page</option>
+        <option value="kid">KID RAVE</option>
+      </select>
     </div>
 
     <div class="menu-bar-right">
@@ -301,6 +306,31 @@
           <button id="clearCodeButton" class="secondary-button" type="button">Clear</button>
         </div>
         <button id="downloadEventHtmlButton" class="download-button" type="button">Download HTML</button>
+      </footer>
+    </aside>
+
+    <aside id="kidRaveMode" class="sidebar mode-panel" aria-label="KID RAVE editor" hidden>
+      <form id="kidRaveForm" class="upcoming-sidebar-scroll">
+        <section class="sidebar-controls"><h2 class="section-title">KID RAVE Page</h2>
+        <p class="field-hint">One event supplies the featured card and the ticket-details card. Changes are saved in this browser.</p>
+<div class="field-group"><label for="kid-name">Event Name</label><input id="kid-name" name="name" type="text" required /></div>
+<div class="field-group"><label for="kid-date">Event Date</label><input id="kid-date" name="date" type="date" required /></div>
+<div class="field-group"><label for="kid-showTime">Show Time</label><input id="kid-showTime" name="showTime" type="text" required /></div>
+<div class="field-group"><label for="kid-venue">Venue / Location</label><input id="kid-venue" name="venue" type="text" required /></div>
+<div class="field-group"><label for="kid-city">City / State</label><input id="kid-city" name="city" type="text" required /></div>
+<div class="field-group"><label for="kid-description">Event Description</label><textarea id="kid-description" name="description" required></textarea></div>
+<div class="field-group"><label for="kid-flyer">Flyer URL</label><input id="kid-flyer" name="flyer" type="url" required /></div>
+<div class="field-group"><label for="kid-eventUrl">Event Card Link</label><input id="kid-eventUrl" name="eventUrl" type="text" required /></div>
+<div class="field-group"><label for="kid-ticketUrl">Ticket Button URL</label><input id="kid-ticketUrl" name="ticketUrl" type="url" required /></div>
+<div class="field-group"><label for="kid-heroLabel">Hero Ticket Button Text</label><input id="kid-heroLabel" name="heroLabel" type="text" required /></div>
+<div class="field-group"><label for="kid-navLabel">Menu Ticket Button Text</label><input id="kid-navLabel" name="navLabel" type="text" required /></div>
+<div class="field-group"><label for="kid-detailsLabel">Eventbrite Button Text</label><input id="kid-detailsLabel" name="detailsLabel" type="text" required /></div>
+<div class="field-group"><label for="kid-pricing">Ticket / Package Details</label><input id="kid-pricing" name="pricing" type="text" required /></div>
+        </section>
+      </form>
+      <footer class="sidebar-footer"><div id="kidStatus" class="page-status" role="status" aria-live="polite"></div>
+        <div class="footer-actions"><button id="kidCopy" class="primary-button" type="button">Copy Code</button><button id="kidReset" class="secondary-button" type="button">Reset</button></div>
+        <button id="kidDownload" class="download-button" type="button">Download HTML</button>
       </footer>
     </aside>
 

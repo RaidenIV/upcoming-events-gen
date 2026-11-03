@@ -701,7 +701,7 @@ function updateGeneratedPage({ immediate = false } = {}) {
   const renderGeneratedPage = () => {
     const validEvents = usableEvents();
     generatedCode = buildGeneratedPage(validEvents);
-    renderPreview(generatedCode);
+    if (!document.getElementById("upcomingMode").hidden) renderPreview(generatedCode);
     updateStatus(validEvents);
   };
 
@@ -1061,7 +1061,7 @@ function handleGlobalKeydown(event) {
     (event.ctrlKey || event.metaKey) &&
     (event.key.toLowerCase() === "y" || (event.shiftKey && event.key.toLowerCase() === "z"));
   if (!isUndoKey && !isRedoKey) return;
-  if (document.body.classList.contains("is-code-mode")) return;
+  if (document.getElementById("upcomingMode").hidden) return;
   if (event.target instanceof HTMLElement && (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA")) return;
 
   event.preventDefault();
