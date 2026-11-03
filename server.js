@@ -259,6 +259,28 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (requestUrl.pathname === "/api/save-kid-rave") {
+    if (req.method !== "POST") { sendJson(res, 405, { error: "Use POST." }); return; }
+    void (async () => {
+      try {
+        const payload = await readJsonBody(req);
+        if (typeof payload.code !== "string" || !payload.code.trim()) {
+          sendJson(res, 400, { error: "Generated page code is required." }); return;
+        }
+        const savedAt = new Date().toISOString();
+        await Promise.all([
+          writeAtomic(path.join(DATA_DIR, "kid-rave-page.html"), payload.code),
+          writeAtomic(path.join(DATA_DIR, "kid-rave-data.json"), JSON.stringify({ savedAt, event: payload.event || {} }))
+        ]);
+        sendJson(res, 200, { status: "saved", savedAt, pageUrl: "/saved-kid-rave" });
+      } catch (error) { sendJson(res, error.statusCode || 500, { error: "Could not save KID RAVE page." }); }
+    })();
+    return;
+  }
+  if (requestUrl.pathname === "/saved-kid-rave") {
+    sendFile(res, path.join(DATA_DIR, "kid-rave-page.html"), "no-cache"); return;
+  }
+
   if (requestUrl.pathname === "/api/save-page") {
     if (req.method !== "POST") {
       res.writeHead(405, { "Allow": "POST", "Content-Type": "text/plain; charset=utf-8" });

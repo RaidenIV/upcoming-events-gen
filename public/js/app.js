@@ -4,7 +4,7 @@ import { activateUpcomingEvents } from "./upcoming-events.js?v=kid-mode-3";
 import { activateEventCodeBlock } from "./event-code-block.js?v=kid-mode-3";
 async function activateKidRave() {
   try {
-    const module = await import("./kid-rave.js?v=kid-mode-3");
+    const module = await import("./kid-rave.js?v=kid-save-4");
     if (!document.getElementById("kidRaveMode").hidden) await module.activateKidRave();
   } catch (error) {
     document.getElementById("kidStatus").textContent = "Unable to load KID RAVE: " + error.message;

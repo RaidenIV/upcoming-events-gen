@@ -1230,6 +1230,16 @@
     font-weight: 700 !important;
   }
 
+
+  .next-event-card { aspect-ratio: auto; }
+  .next-event-card .next-event-description,
+  .next-event-card .next-event-venue,
+  .next-event-card .next-event-venue-text {
+    display: block; white-space: normal; overflow: visible;
+    text-overflow: clip; -webkit-line-clamp: unset; line-clamp: unset;
+    overflow-wrap: anywhere;
+  }
+  .next-event-card .next-event-venue { display: flex; }
 </style>
 </head>
 <body>

@@ -133,3 +133,23 @@ export async function activateKidRave() {
     if (!panel.hidden) status.textContent = error.message;
   }
 }
+
+
+document.getElementById("kidSave").addEventListener("click", async () => {
+  const button = document.getElementById("kidSave");
+  if (!await update()) { form.reportValidity(); return; }
+  button.disabled = true;
+  status.textContent = "Saving KID RAVE page…";
+  try {
+    const response = await fetch("/api/save-kid-rave", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code: generatedCode, event: readData() })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Save failed.");
+    status.textContent = "KID RAVE page saved to server.";
+    button.textContent = "Saved";
+    setTimeout(() => { button.textContent = "Save"; }, 1500);
+  } catch (error) { status.textContent = "Save failed: " + error.message; }
+  finally { button.disabled = false; }
+});
